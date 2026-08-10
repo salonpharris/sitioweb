@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sitio Paul Harris</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;1,500;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+
+  /* =====================================================
+     CONFIGURACIÓN VISUAL — variables de diseño
+     Azul nocturno con vidrio esmerilado y una nube de luz
+     que respira detrás del título.
+     ===================================================== */
+  :root{
+    --bg-0:#04050c;
+    --bg-1:#0a1030;
+    --bg-2:#161f5c;
+    --bg-3:#2b3bb0;
+    --bg-4:#3f4fe0;
+    --glow:#6d86ff;
+    --glow-soft:#7fa0ff;
+    --ink:#f4f5fb;
+    --ink-dim:#aeb6e0;
+    --ink-faint:#7078a8;
+    --line: rgba(255,255,255,0.10);
+    --card: rgba(255,255,255,0.045);
+    --card-hover: rgba(255,255,255,0.09);
+    --radius: 14px;
+    --serif: 'Playfair Display', serif;
+    --sans: 'Outfit', sans-serif;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  html{scroll-behavior:smooth;}
+
+  body{
+    font-family:var(--sans);
+    background:
+      radial-gradient(ellipse 120% 60% at 50% -10%, #0e1650 0%, transparent 55%),
+      linear-gradient(115deg, var(--bg-0) 0%, var(--bg-1) 28%, var(--bg-2) 55%, var(--bg-3) 78%, var(--bg-4) 100%);
+    background-attachment: fixed;
+    color:var(--ink);
+    min-height:100vh;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important;}
+  }
+
+  a{color:inherit; text-decoration:none;}
+  button{font-family:inherit;}
+
+  :focus-visible{
+    outline:2px solid var(--glow-soft);
+    outline-offset:3px;
+    border-radius:8px;
+  }
+
+  .wrap{
+    max-width:720px;
+    margin:0 auto;
+    padding:0 28px;
+  }
+
+  @media (min-width:900px){
+    .wrap{ max-width:800px; padding:0 40px; }
+  }
+  @media (min-width:1280px){
+    .wrap{ max-width:860px; }
+  }
+
+  /* =====================================================
+     BLOOM — elemento firma: nube de luz que respira
+     ===================================================== */
+  .bloom{
+    position:relative;
+    width:min(560px, 92vw);
+    height:min(560px, 92vw);
+    margin:0 auto;
+  }
+  .bloom::before, .bloom::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    border-radius:50%;
+    filter:blur(46px);
+  }
+  .bloom::before{
+    background:
+      radial-gradient(circle at 30% 30%, rgba(125,150,255,0.55), transparent 60%),
+      radial-gradient(circle at 68% 40%, rgba(95,115,240,0.5), transparent 58%),
+      radial-gradient(circle at 50% 68%, rgba(70,90,210,0.45), transparent 60%);
+    animation: breathe 9s ease-in-out infinite;
+  }
+  .bloom::after{
+    background: radial-gradient(circle at 50% 50%, rgba(200,210,255,0.35), transparent 55%);
+    animation: breathe 9s ease-in-out infinite reverse;
+    animation-delay: -3s;
+  }
+  @keyframes breathe{
+    0%,100%{ transform:scale(1); opacity:0.85; }
+    50%{ transform:scale(1.08); opacity:1; }
+  }
+
+  /* =====================================================
+     HERO
+     ===================================================== */
+  .hero{
+    position:relative;
+    padding:104px 0 40px;
+    text-align:center;
+  }
+  .hero-inner{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    pointer-events:none;
+  }
+  .hero-text{
+    position:relative;
+    z-index:2;
+  }
+  .eyebrow-sitio{
+    font-family:var(--serif);
+    font-style:italic;
+    font-weight:500;
+    font-size:clamp(28px, 6vw, 38px);
+    color:var(--ink);
+    letter-spacing:0.02em;
+    display:block;
+  }
+  .title-main{
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:clamp(38px, 9vw, 58px);
+    letter-spacing:-0.01em;
+    margin-top:4px;
+    display:block;
+    background:linear-gradient(180deg, #ffffff 0%, #c9d3ff 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .subtitle{
+    margin-top:18px;
+    font-size:15px;
+    letter-spacing:0.3em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    font-weight:400;
+  }
+
+  /* =====================================================
+     SECCIONES
+     ===================================================== */
+  section{
+    position:relative;
+    padding:52px 0;
+  }
+  .section-label{
+    font-size:12px;
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    font-weight:500;
+    margin-bottom:18px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .section-label::after{
+    content:"";
+    flex:1;
+    height:1px;
+    background:linear-gradient(90deg, var(--line), transparent);
+  }
+
+  /* Grid de accesos */
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  .card{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    text-align:center;
+    padding:26px 14px;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    backdrop-filter: blur(10px);
+    transition: background 0.35s ease, transform 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+    min-height:118px;
+  }
+  .card:hover, .card:focus-visible{
+    background:var(--card-hover);
+    border-color: rgba(255,255,255,0.22);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 34px -14px rgba(90,110,255,0.55);
+  }
+  .card-icon{
+    width:26px; height:26px;
+    stroke:var(--glow-soft);
+    fill:none;
+    stroke-width:1.6;
+    opacity:0.95;
+  }
+  .card-label{
+    font-size:13.5px;
+    font-weight:500;
+    letter-spacing:0.03em;
+    color:var(--ink);
+    line-height:1.35;
+  }
+
+  /* Reuniones */
+  .meet-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  .meet-card{
+    padding:22px 18px;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    text-align:left;
+  }
+  .meet-day{
+    font-size:11.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    margin-bottom:6px;
+  }
+  .meet-name{
+    font-family:var(--sans);
+    font-weight:500;
+    font-size:19px;
+    color:var(--ink);
+    margin-bottom:10px;
+  }
+  .meet-time{
+    font-size:22px;
+    font-weight:600;
+    color:var(--glow-soft);
+    letter-spacing:0.01em;
+  }
+
+  /* Acceso a la app */
+  .access-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  .access-card{
+    padding:24px 14px;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    text-align:center;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+    transition: background 0.3s ease, transform 0.3s ease;
+  }
+  .access-card:hover, .access-card:focus-visible{
+    background:var(--card-hover);
+    transform:translateY(-3px);
+  }
+  .access-icon{ width:34px; height:34px; }
+  .access-label{ font-size:13px; color:var(--ink-dim); letter-spacing:0.05em; }
+
+  /* Acordeón instrucciones PWA */
+  .install{
+    margin-top:16px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:hidden;
+    background:var(--card);
+  }
+  .install-tabs{
+    display:flex;
+  }
+  .install-tab{
+    flex:1;
+    padding:15px 10px;
+    text-align:center;
+    font-size:13px;
+    letter-spacing:0.05em;
+    color:var(--ink-faint);
+    background:transparent;
+    border:none;
+    cursor:pointer;
+    border-bottom:1px solid var(--line);
+    transition: color 0.25s ease, border-color 0.25s ease;
+  }
+  .install-tab.active{
+    color:var(--ink);
+    border-bottom:1px solid var(--glow-soft);
+  }
+  .install-panel{
+    display:none;
+    padding:22px 22px 26px;
+  }
+  .install-panel.active{ display:block; }
+  .install-panel ol{
+    padding-left:20px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .install-panel li{
+    font-size:14px;
+    line-height:1.5;
+    color:var(--ink-dim);
+  }
+  .install-panel li b{ color:var(--ink); font-weight:600; }
+
+  footer{
+    padding:60px 0 44px;
+    text-align:center;
+  }
+  .footer-mark{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:16px;
+    color:var(--ink-faint);
+  }
+  .footer-sub{
+    margin-top:6px;
+    font-size:11.5px;
+    letter-spacing:0.15em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    opacity:0.6;
+  }
+
+  @media (max-width:420px){
+    .grid, .access-row{ grid-template-columns:1fr 1fr; }
+  }
+
+  @media (min-width:900px){
+    .card{ padding:32px 16px; min-height:138px; }
+    .meet-card{ padding:28px 24px; }
+    .access-card{ padding:30px 16px; }
+    .hero{ padding-top:128px; }
+  }
+</style>
+</head>
+<body>
+
+  <header class="hero">
+    <div class="hero-inner"><div class="bloom" aria-hidden="true"></div></div>
+    <div class="hero-text">
+      <span class="eyebrow-sitio">Sitio</span>
+      <span class="title-main">Paul Harris</span>
+      <span class="subtitle">Bienvenidos</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <section id="accesos">
+      <div class="section-label">Accesos rápidos</div>
+      <div class="grid" id="grid-accesos"><!-- se llena con JS desde CONFIG --></div>
+    </section>
+
+    <section id="reuniones">
+      <div class="section-label">Reuniones</div>
+      <div class="meet-row" id="grid-reuniones"><!-- se llena con JS desde CONFIG --></div>
+    </section>
+
+    <section id="otros">
+      <div class="section-label">Otros</div>
+      <div class="grid" id="grid-otros"><!-- se llena con JS desde CONFIG --></div>
+    </section>
+
+    <section id="app">
+      <div class="section-label">Descarga la app</div>
+      <div class="access-row" id="grid-acceso"><!-- se llena con JS desde CONFIG --></div>
+
+      <div class="install">
+        <div class="install-tabs">
+          <button class="install-tab active" data-panel="ios">iPhone</button>
+          <button class="install-tab" data-panel="android">Android</button>
+        </div>
+        <div class="install-panel active" id="panel-ios">
+          <ol>
+            <li>Toca el ícono <b>compartir</b> en la parte inferior de la pantalla.</li>
+            <li>Desplázate hacia abajo y selecciona <b>"Agregar a inicio"</b>.</li>
+            <li>En la esquina superior derecha selecciona <b>"Agregar"</b>.</li>
+            <li>¡Listo! La aplicación aparecerá en tu pantalla de inicio.</li>
+          </ol>
+        </div>
+        <div class="install-panel" id="panel-android">
+          <ol>
+            <li>Toca el menú (⋮) en la esquina superior derecha del navegador.</li>
+            <li>Selecciona <b>"Agregar a la pantalla principal"</b>.</li>
+            <li>Toca <b>"Instalar"</b>.</li>
+            <li>Espera unos segundos y luego toca <b>"Abrir"</b>.</li>
+            <li>¡Listo! La app estará disponible en tu pantalla de inicio.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="footer-sub">Plataformas PH</div>
+  </footer>
+
+<script>
+/* =========================================================================
+   CONFIGURACIÓN — EDITA AQUÍ
+   Todo el contenido de la página (enlaces, textos, horarios) vive en este
+   objeto. Cambia los valores de "href" por la URL real de cada herramienta
+   cuando esté publicada, y el texto que quieras mostrar.
+   ========================================================================= */
+const CONFIG = {
+
+  accesos: [
+    { label: "Grupos de\nServicio", href: "#", icon: "users" },
+    { label: "Territorios",         href: "#", icon: "map" },
+    { label: "Privilegios",         href: "#", icon: "star" },
+    { label: "Tablero\nDigital",    href: "#", icon: "grid" },
+  ],
+
+  reuniones: [
+    { day: "Martes",   name: "Vida y Ministerio", time: "19:30 hrs" },
+    { day: "Domingo",  name: "Reunión Pública",    time: "11:15 hrs" },
+  ],
+
+  otros: [
+    { label: "Presidencia\nPH Channel", href: "#", icon: "play" },
+    { label: "Iniciar\nSesión",         href: "#", icon: "login" },
+  ],
+
+  acceso: [
+    { label: "Android", href: "#", icon: "android" },
+    { label: "iPhone",  href: "#", icon: "apple" },
+  ],
+};
+
+/* =========================================================================
+   ICONOS — set mínimo en SVG (trazo, sin relleno) para que combinen con
+   el estilo de las tarjetas de vidrio.
+   ========================================================================= */
+const ICONS = {
+  users: `<circle cx="9" cy="8" r="3"/><path d="M2 21v-1c0-3 3-5 7-5s7 2 7 5v1"/><circle cx="17" cy="8" r="2.4"/><path d="M22 21v-1c0-2.2-1.6-4-4-4.7"/>`,
+  map: `<path d="M3 6l6-2 6 2 6-2v15l-6 2-6-2-6 2V6z"/><path d="M9 4v15M15 6v15"/>`,
+  star: `<path d="M12 3l2.6 5.8 6.4.6-4.8 4.3 1.4 6.3L12 16.9 6.4 20l1.4-6.3L3 9.4l6.4-.6L12 3z"/>`,
+  grid: `<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/>`,
+  play: `<circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5v-7z"/>`,
+  login: `<path d="M11 4H5a1 1 0 00-1 1v14a1 1 0 001 1h6"/><path d="M15 8l4 4-4 4"/><path d="M19 12H9"/>`,
+  android: `<path d="M6 9h12v9a1 1 0 01-1 1H7a1 1 0 01-1-1V9z"/><path d="M9 3l1.5 2M15 3l-1.5 2M6 9V7a2 2 0 012-2h8a2 2 0 012 2v2M4 10v5M20 10v5M10 21v1M14 21v1"/>`,
+  apple: `<path d="M15.5 8.2c-1 0-2 .6-2.6.6-.6 0-1.5-.6-2.4-.6-1.3 0-2.5.8-3.2 2-1.3 2.4-.3 6 1 8 .6 1 1.4 2.1 2.4 2 .9 0 1.3-.6 2.4-.6s1.4.6 2.4.6c1 0 1.7-1 2.3-2 .5-.8.9-1.7.9-1.8-2-.8-2.4-3.6-.4-4.8-1-1.4-2.5-1.4-2.8-1.4z"/><path d="M13.5 5.5c.5-.6.9-1.5.8-2.5-.9.1-1.9.7-2.4 1.3-.5.6-1 1.5-.8 2.4 1 .1 1.9-.5 2.4-1.2z"/>`,
+};
+
+/* =========================================================================
+   RENDER — construye las tarjetas a partir de CONFIG (no necesitas tocar
+   esta parte, sólo el objeto CONFIG de arriba).
+   ========================================================================= */
+function iconSvg(name){
+  return `<svg class="card-icon" viewBox="0 0 24 24">${ICONS[name] || ICONS.star}</svg>`;
+}
+
+function renderCards(containerId, items){
+  const el = document.getElementById(containerId);
+  el.innerHTML = items.map(item => `
+    <a class="card" href="${item.href}">
+      ${iconSvg(item.icon)}
+      <span class="card-label">${item.label.replace(/\n/g,'<br>')}</span>
+    </a>
+  `).join("");
+}
+
+renderCards("grid-accesos", CONFIG.accesos);
+renderCards("grid-otros", CONFIG.otros);
+
+document.getElementById("grid-reuniones").innerHTML = CONFIG.reuniones.map(r => `
+  <div class="meet-card">
+    <div class="meet-day">${r.day}</div>
+    <div class="meet-name">${r.name}</div>
+    <div class="meet-time">${r.time}</div>
+  </div>
+`).join("");
+
+document.getElementById("grid-acceso").innerHTML = CONFIG.acceso.map(a => `
+  <a class="access-card" href="${a.href}">
+    <svg class="access-icon" viewBox="0 0 24 24" stroke="#8fa6ff" stroke-width="1.5" fill="none">${ICONS[a.icon]}</svg>
+    <span class="access-label">${a.label}</span>
+  </a>
+`).join("");
+
+/* Tabs de instrucciones de instalación */
+document.querySelectorAll(".install-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".install-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".install-panel").forEach(p => p.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("panel-" + tab.dataset.panel).classList.add("active");
+  });
+});
+</script>
+
+</body>
+</html>
