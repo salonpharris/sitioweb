@@ -25,8 +25,9 @@ onAuthStateChanged(auth, async (user) => {
 
   const allowed = await isAllowed(app, user);
   if (!allowed){
+    const deniedEmail = user.email || "";
     await signOut(auth);
-    location.replace("login.html?denied=1");
+    location.replace(`login.html?denied=1&email=${encodeURIComponent(deniedEmail)}`);
     return;
   }
 
