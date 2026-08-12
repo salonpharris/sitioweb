@@ -175,7 +175,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth, onAuthStateChanged, signInWithPopup,
+  getAuth, onAuthStateChanged, signInWithRedirect, getRedirectResult,
   GoogleAuthProvider, OAuthProvider,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -251,11 +251,15 @@ function showError(err){
 }
 
 document.getElementById("googleBtn").addEventListener("click", () => {
-  signInWithPopup(auth, new GoogleAuthProvider()).catch(showError);
+  signInWithRedirect(auth, new GoogleAuthProvider()).catch(showError);
 });
 document.getElementById("microsoftBtn").addEventListener("click", () => {
-  signInWithPopup(auth, new OAuthProvider("microsoft.com")).catch(showError);
+  signInWithRedirect(auth, new OAuthProvider("microsoft.com")).catch(showError);
 });
+
+// Captura errores al volver de Google/Microsoft (la sesión misma la
+// detecta onAuthStateChanged más arriba).
+getRedirectResult(auth).catch(showError);
 
 document.getElementById("authForm").addEventListener("submit", (e) => {
   e.preventDefault();
