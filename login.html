@@ -145,9 +145,8 @@
     <div class="legal-note">
       De acuerdo a la Ley 21.719, que regula la protección y el tratamiento de datos personales
       y que muy pronto comenzará a regir en nuestro país, solo se puede acceder a las funciones
-      de este tablero digital previa firma de un documento que lo autorice, y única y
-      exclusivamente desde las cuentas de correo registradas previamente. Para más información,
-      contacta a tu capitán de grupo.
+      de este tablero digital única y exclusivamente desde las cuentas de correo registradas previamente. 
+      Para más información, contacta a tu Capitán de Grupo.
     </div>
   </div>
 
@@ -179,7 +178,7 @@ if (params.get("denied") === "1"){
   msg.className = "msg error";
   msg.textContent = deniedEmail
     ? `El correo ${deniedEmail} inició sesión correctamente, pero no está autorizado para entrar a este sitio. Si escribiste tu correo tal cual aparece aquí, pide al administrador que lo agregue a la lista de acceso.`
-    : "Tu cuenta inició sesión correctamente, pero no está autorizada para entrar a este sitio. Pide al administrador que agregue tu correo a la lista de acceso.";
+    : "Tu cuenta inició sesión correctamente, pero no está autorizada para entrar a este sitio. Pide a tu Capitán de Grupo que agregue tu correo a la lista de acceso.";
 }
 
 // Si ya hay sesión activa y autorizada, saltar el login directo al sitio.
