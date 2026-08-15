@@ -16,6 +16,10 @@
 <title>Territorios — Paul Harris</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;1,500;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+</script>
 <style>
 
   /* =====================================================
@@ -203,7 +207,7 @@
     transform-origin:0 0;
     will-change:transform;
   }
-  .zoom-layer img{ display:block; max-width:none; user-select:none; -webkit-user-drag:none; }
+  .zoom-layer img, .zoom-layer canvas{ display:block; max-width:none; user-select:none; -webkit-user-drag:none; }
 
   .viewer-hint{
     position:absolute; bottom:12px; left:50%; transform:translateX(-50%);
@@ -277,9 +281,9 @@
     <div class="view-title" id="territoryTitle"></div>
     <div class="map-viewer" id="territoryViewer">
       <div class="zoom-layer" id="territoryZoomLayer">
-        <img id="territoryImg" src="" alt="" onerror="this.parentElement.parentElement.querySelector('.viewer-hint').textContent='No se encontró la imagen en: ' + this.getAttribute('src') + ' — revisa que la carpeta assets esté subida junto al HTML.';">
+        <canvas id="territoryCanvas"></canvas>
       </div>
-      <div class="viewer-hint">Arrastra para mover · rueda o pellizca para acercar</div>
+      <div class="viewer-hint" id="territoryHint">Arrastra para mover · rueda o pellizca para acercar</div>
     </div>
   </div>
 
@@ -292,9 +296,9 @@
     <div class="view-title">Mapa completo · v5.0</div>
     <div class="map-viewer" id="generalViewer">
       <div class="zoom-layer" id="generalZoomLayer">
-        <img id="generalImg" src="assets/mapa-general.jpg" alt="Mapa completo de territorios" onerror="this.parentElement.parentElement.querySelector('.viewer-hint').textContent='No se encontró la imagen en: ' + this.getAttribute('src') + ' — revisa que la carpeta assets esté subida junto al HTML.';">
+        <canvas id="generalCanvas"></canvas>
       </div>
-      <div class="viewer-hint">Arrastra para mover · rueda o pellizca para acercar</div>
+      <div class="viewer-hint" id="generalHint">Arrastra para mover · rueda o pellizca para acercar</div>
     </div>
   </div>
 
@@ -315,8 +319,9 @@ const RANGES = [
   { key:"31-35", label:"31 al 35",  from:31, to:35 },
 ];
 
-/* Imagen de cada territorio: assets/territorios/territorio-N.jpg */
-function territoryImgSrc(n){ return `assets/territorios/territorio-${n}.jpg`; }
+/* PDF de cada territorio: assets/territorios/territorio-N.pdf */
+function territoryPdfSrc(n){ return `assets/territorios/territorio-${n}.pdf`; }
+const GENERAL_PDF_SRC = "assets/mapa-general.pdf";
 
 /* =========================================================================
    RENDER — vista inicial: rangos
@@ -371,17 +376,16 @@ function openRange(key){
   showOnly(viewRange);
 }
 
-function openTerritory(n){
+async function openTerritory(n){
   document.getElementById("territoryTitle").textContent = "Territorio " + n;
-  const img = document.getElementById("territoryImg");
-  img.src = territoryImgSrc(n);
-  img.alt = "Mapa del territorio " + n;
-  resetZoom(territoryZoom);
   showOnly(viewTerritory);
+  await renderPdf(territoryPdfSrc(n), document.getElementById("territoryCanvas"), document.getElementById("territoryHint"), 3);
+  resetZoom(territoryZoom);
 }
 
-function openGeneral(){
+async function openGeneral(){
   showOnly(viewGeneral);
+  await renderPdf(GENERAL_PDF_SRC, document.getElementById("generalCanvas"), document.getElementById("generalHint"), 1.6);
   resetZoom(generalZoom);
 }
 
@@ -395,7 +399,7 @@ document.getElementById("backFromGeneral").addEventListener("click", () => showO
 /* =========================================================================
    VISOR CON ZOOM / PAN (reutilizable)
    ========================================================================= */
-function createZoomController(viewerEl, layerEl, imgEl){
+function createZoomController(viewerEl, layerEl, el){
   const state = { scale:1, tx:0, ty:0, minScale:1, maxScale:5 };
   let dragging = false, lastX=0, lastY=0;
   let pinchStartDist = 0, pinchStartScale = 1;
@@ -406,7 +410,7 @@ function createZoomController(viewerEl, layerEl, imgEl){
 
   function clamp(){
     const vw = viewerEl.clientWidth, vh = viewerEl.clientHeight;
-    const iw = imgEl.naturalWidth || vw, ih = imgEl.naturalHeight || vh;
+    const iw = el.width || vw, ih = el.height || vh;
     const fitScale = Math.min(vw / iw, vh / ih);
     state.minScale = fitScale;
     if (state.scale < fitScale) state.scale = fitScale;
@@ -419,7 +423,7 @@ function createZoomController(viewerEl, layerEl, imgEl){
 
   function reset(){
     const vw = viewerEl.clientWidth, vh = viewerEl.clientHeight;
-    const iw = imgEl.naturalWidth || vw, ih = imgEl.naturalHeight || vh;
+    const iw = el.width || vw, ih = el.height || vh;
     const fitScale = Math.min(vw / iw, vh / ih) || 1;
     state.scale = fitScale;
     state.tx = (vw - iw * fitScale) / 2;
@@ -499,7 +503,6 @@ function createZoomController(viewerEl, layerEl, imgEl){
     return Math.sqrt(dx*dx + dy*dy);
   }
 
-  imgEl.addEventListener("load", reset);
   window.addEventListener("resize", () => { clamp(); apply(); });
 
   return { reset, state };
@@ -508,16 +511,38 @@ function createZoomController(viewerEl, layerEl, imgEl){
 const territoryZoom = createZoomController(
   document.getElementById("territoryViewer"),
   document.getElementById("territoryZoomLayer"),
-  document.getElementById("territoryImg")
+  document.getElementById("territoryCanvas")
 );
 const generalZoom = createZoomController(
   document.getElementById("generalViewer"),
   document.getElementById("generalZoomLayer"),
-  document.getElementById("generalImg")
+  document.getElementById("generalCanvas")
 );
 
 function resetZoom(controller){
   requestAnimationFrame(() => controller.reset());
+}
+
+/* =========================================================================
+   RENDERIZADO DE PDF — dibuja el PDF directamente en el canvas, en alta
+   resolución (nítido incluso haciendo zoom), sin pasar por una imagen
+   comprimida. Usa la librería pdf.js.
+   ========================================================================= */
+async function renderPdf(url, canvas, hintEl, scale){
+  try{
+    hintEl.textContent = "Cargando mapa…";
+    const pdf = await pdfjsLib.getDocument(url).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    hintEl.textContent = "Arrastra para mover · rueda o pellizca para acercar";
+  } catch (err){
+    console.error("No se pudo cargar el PDF:", url, err);
+    hintEl.textContent = `No se encontró el mapa en: ${url} — revisa que el archivo esté subido con ese nombre exacto.`;
+  }
 }
 </script>
 
