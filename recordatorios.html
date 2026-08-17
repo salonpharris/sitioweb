@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/icons/apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/icons/apple-touch-icon-167.png">
+<meta name="theme-color" content="#0a1030">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sitio PH">
+<title>Recordatorios — Paul Harris</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;1,500;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script type="module" src="assets/js/auth-guard.js"></script>
+<style>
+  html.auth-pending{ visibility:hidden; }
+
+  :root{
+    --bg-0:#04050c; --bg-1:#0a1030; --bg-2:#161f5c; --bg-3:#2b3bb0; --bg-4:#3f4fe0;
+    --glow:#6d86ff; --glow-soft:#7fa0ff;
+    --ink:#f4f5fb; --ink-dim:#aeb6e0; --ink-faint:#7078a8;
+    --line: rgba(255,255,255,0.10);
+    --card: rgba(255,255,255,0.045);
+    --card-hover: rgba(255,255,255,0.09);
+    --radius:14px;
+    --red:#e0503f;
+    --sans:'Outfit', sans-serif;
+    --serif:'Playfair Display', serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:var(--sans);
+    background:
+      radial-gradient(ellipse 120% 60% at 50% -10%, #0e1650 0%, transparent 55%),
+      linear-gradient(115deg, var(--bg-0) 0%, var(--bg-1) 28%, var(--bg-2) 55%, var(--bg-3) 78%, var(--bg-4) 100%);
+    background-attachment: fixed;
+    color:var(--ink);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit; text-decoration:none;}
+  button{font-family:inherit;}
+  :focus-visible{ outline:2px solid var(--glow-soft); outline-offset:3px; border-radius:8px; }
+
+  .wrap{ max-width:640px; margin:0 auto; padding:0 24px 90px; }
+  @media (min-width:900px){ .wrap{ max-width:680px; padding:0 40px 100px; } }
+
+  .topbar{ display:flex; align-items:center; justify-content:space-between; padding:26px 0 0; }
+  .back-link{ display:inline-flex; align-items:center; gap:8px; font-size:12.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-faint); }
+  .back-link:hover{ color:var(--ink-dim); }
+  .back-link svg{ width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.6; }
+  .auth-slot{ display:flex; align-items:center; gap:12px; }
+  .auth-logout{
+    font-family:var(--sans); font-size:12px; letter-spacing:0.05em; color:var(--ink-dim);
+    background:rgba(255,255,255,0.06); border:1px solid var(--line); border-radius:999px;
+    padding:7px 14px; cursor:pointer; transition:background .25s ease, border-color .25s ease;
+  }
+  .auth-logout:hover{ background:var(--card-hover); border-color:rgba(255,255,255,.22); }
+
+  .hero{ padding:22px 0 26px; text-align:center; }
+  .eyebrow{ font-family:var(--serif); font-style:normal; font-size:20px; color:var(--ink-dim); display:block; }
+  .title-main{
+    font-weight:600; font-size:clamp(30px,7vw,42px); margin-top:2px; display:block;
+    background:linear-gradient(180deg,#fff 0%, #c9d3ff 100%); -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+
+  .toolbar{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; flex-wrap:wrap; }
+  .btn{
+    font-family:var(--sans); font-size:13px; font-weight:500; letter-spacing:0.02em;
+    padding:11px 18px; border-radius:999px; border:1px solid var(--line);
+    background:var(--card); color:var(--ink); cursor:pointer;
+    transition:background .25s ease, border-color .25s ease;
+    white-space:nowrap;
+  }
+  .btn:hover{ background:var(--card-hover); border-color:rgba(255,255,255,.22); }
+  .btn-edit{ background:var(--red); border-color:var(--red); color:#fff; font-weight:600; }
+  .btn-edit:hover{ background:#c9432f; }
+  .btn-primary{ background:linear-gradient(180deg,#8fa6ff,#5f78e8); border:none; color:#0a0e2a; font-weight:600; }
+  .btn-primary:hover{ filter:brightness(1.08); }
+  .btn-ghost{ background:transparent; }
+  .edit-actions{ display:flex; gap:10px; flex-wrap:wrap; margin:26px 0 6px; }
+
+  .section-label{
+    font-size:12px; letter-spacing:0.22em; text-transform:uppercase; color:var(--ink-faint);
+    font-weight:500; margin:36px 0 16px; display:flex; align-items:center; gap:12px;
+  }
+  .section-label::after{ content:""; flex:1; height:1px; background:linear-gradient(90deg,var(--line),transparent); }
+
+  .empty-state{
+    padding:34px 20px; text-align:center; color:var(--ink-faint); font-size:13.5px;
+    border:1px dashed var(--line); border-radius:var(--radius);
+  }
+
+  /* ---- lista vertical (no en columnas) ---- */
+  .photo-list{
+    display:flex; flex-direction:column; gap:18px;
+  }
+  .photo-item{
+    position:relative; border-radius:var(--radius); overflow:hidden;
+    background:var(--card); border:1px solid var(--line);
+  }
+  .photo-item img{
+    display:block; width:100%; height:auto; cursor:pointer;
+    -webkit-user-drag:none; user-select:none;
+  }
+  .photo-item.pending-upload{ border-color:rgba(127,160,255,0.5); }
+  .photo-item.pending-moved{ border-color:rgba(127,160,255,0.5); }
+  .photo-item.pending-delete{ opacity:0.35; }
+
+  .photo-tag{
+    position:absolute; top:10px; left:10px; font-size:10.5px; letter-spacing:0.05em;
+    padding:4px 10px; border-radius:999px; background:rgba(4,5,12,0.7); color:var(--glow-soft);
+    text-transform:uppercase; font-weight:600;
+  }
+
+  .photo-actions{ position:absolute; top:10px; right:10px; display:flex; gap:8px; }
+  .photo-actions button{
+    width:34px; height:34px; border-radius:9px; border:1px solid rgba(255,255,255,0.25);
+    background:rgba(4,5,12,0.65); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    backdrop-filter:blur(4px);
+  }
+  .photo-actions button svg{ width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; }
+  .photo-actions .del-btn:hover{ background:rgba(224,80,63,0.85); border-color:#e0503f; }
+  .photo-actions .move-btn:hover, .photo-actions .undo-btn:hover{ background:rgba(127,160,255,0.75); border-color:var(--glow-soft); }
+
+  .reorder-actions{ position:absolute; top:10px; left:10px; display:flex; flex-direction:column; gap:6px; }
+  .reorder-btn{
+    width:30px; height:26px; border-radius:8px; border:1px solid rgba(255,255,255,0.25);
+    background:rgba(4,5,12,0.65); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    backdrop-filter:blur(4px);
+  }
+  .reorder-btn svg{ width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; }
+  .reorder-btn:hover:not(:disabled){ background:rgba(127,160,255,0.75); border-color:var(--glow-soft); }
+  .reorder-btn:disabled{ opacity:0.3; cursor:default; }
+
+  .upload-tile{
+    border-radius:var(--radius); border:1.5px dashed var(--line);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    color:var(--ink-faint); cursor:pointer; text-align:center; padding:34px 16px;
+    transition:border-color .25s ease, color .25s ease, background .25s ease;
+  }
+  .upload-tile:hover{ border-color:var(--glow-soft); color:var(--ink-dim); background:rgba(255,255,255,0.03); }
+  .upload-tile svg{ width:26px; height:26px; stroke:currentColor; fill:none; stroke-width:1.5; }
+  .upload-tile span{ font-size:12.5px; letter-spacing:0.02em; }
+
+  /* ---- lightbox ---- */
+  .lightbox-overlay{
+    display:none; position:fixed; inset:0; background:rgba(2,3,8,0.94);
+    z-index:60; align-items:center; justify-content:center; padding:24px;
+  }
+  .lightbox-overlay.show{ display:flex; }
+  .lightbox-overlay img{ max-width:100%; max-height:100%; object-fit:contain; border-radius:6px; }
+  .lightbox-close{
+    position:absolute; top:18px; right:20px; width:42px; height:42px; border-radius:12px;
+    background:rgba(255,255,255,0.08); border:1px solid var(--line); color:#fff;
+    font-size:22px; line-height:1; cursor:pointer;
+  }
+
+  /* ---- modal genérico (vista previa) ---- */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(4,5,12,0.78);
+    z-index:50; align-items:flex-start; justify-content:center; padding:6vh 18px; overflow-y:auto;
+    backdrop-filter:blur(4px);
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal-box{
+    background:#151c4a; border:1px solid rgba(255,255,255,0.14); border-radius:18px;
+    max-width:600px; width:100%; padding:26px 24px; margin-bottom:6vh;
+  }
+  .modal-title{ font-family:var(--sans); font-weight:700; font-size:19px; margin-bottom:6px; }
+  .modal-close{ float:right; background:none; border:none; color:var(--ink-faint); cursor:pointer; font-size:20px; line-height:1; }
+  .hint{ font-size:12.5px; color:var(--ink-faint); margin-bottom:18px; line-height:1.5; }
+
+  footer{ padding:60px 0 10px; text-align:center; }
+  .footer-sub{ font-size:11.5px; letter-spacing:0.15em; text-transform:uppercase; color:var(--ink-faint); opacity:0.6; }
+</style>
+</head>
+<body>
+
+<main class="wrap">
+
+  <div class="topbar">
+    <a class="back-link" href="index.html">
+      <svg viewBox="0 0 24 24"><path d="M11 4L5 10l6 6M5 10h14"/></svg>
+      Plataforma PH
+    </a>
+    <div class="auth-slot" id="authSlot"></div>
+  </div>
+
+  <header class="hero">
+    <span class="eyebrow">Sitio Paul Harris</span>
+    <span class="title-main">Recordatorios</span>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn btn-edit" id="editBtn" style="display:none;">EDITAR</button>
+  </div>
+
+  <div id="editActions" class="edit-actions" style="display:none;">
+    <button class="btn" id="previewBtn">Vista previa</button>
+    <button class="btn btn-primary" id="publishBtn">Publicar cambios</button>
+    <button class="btn btn-ghost" id="cancelEditBtn">Cancelar</button>
+  </div>
+
+  <div class="section-label">Recordatorios Nuevos</div>
+  <div class="photo-list" id="listNuevos"></div>
+
+  <div class="section-label">Recordatorios Anteriores</div>
+  <div class="photo-list" id="listAnteriores"></div>
+
+  <footer><div class="footer-sub">Plataforma PH</div></footer>
+</main>
+
+<input type="file" id="fileInputNuevos" accept="image/*" multiple style="display:none;">
+<input type="file" id="fileInputAnteriores" accept="image/*" multiple style="display:none;">
+
+<div class="lightbox-overlay" id="lightboxOverlay">
+  <button class="lightbox-close" id="lightboxClose">&times;</button>
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box" id="modalBox"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getStorage, ref, listAll, getDownloadURL, getMetadata, uploadBytes, deleteObject
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { firebaseConfig } from "./assets/js/firebase-config.js";
+import { isEditor } from "./assets/js/editors.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence);
+const storage = getStorage(app);
+const db = getFirestore(app);
+
+const CATEGORIES = {
+  nuevos: { folder: "recordatorios/nuevos", listId: "listNuevos", inputId: "fileInputNuevos", label: "Nuevos" },
+  anteriores: { folder: "recordatorios/anteriores", listId: "listAnteriores", inputId: "fileInputAnteriores", label: "Anteriores" },
+};
+
+let currentUser = null;
+let editorAllowed = false;
+let editMode = false;
+let photosCache = { nuevos: [], anteriores: [] };
+
+/* Cambios pendientes: nada se toca de verdad en Storage hasta "Publicar" */
+let pendingUploads = { nuevos: [], anteriores: [] };   // [{tempId, blob, previewUrl}]
+let pendingDeletes = { nuevos: new Set(), anteriores: new Set() }; // nombres de archivos existentes
+let pendingMoves = []; // [{name, url, from, to}]
+let orderChanged = { nuevos: false, anteriores: false };
+
+const editBtn = document.getElementById("editBtn");
+const editActions = document.getElementById("editActions");
+const lightboxOverlay = document.getElementById("lightboxOverlay");
+const lightboxImg = document.getElementById("lightboxImg");
+const lightboxClose = document.getElementById("lightboxClose");
+const modalOverlay = document.getElementById("modalOverlay");
+const modalBox = document.getElementById("modalBox");
+
+function openModal(html){ modalBox.innerHTML = html; modalOverlay.classList.add("show"); }
+function closeModal(){ modalOverlay.classList.remove("show"); }
+modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) closeModal(); });
+
+/* =========================================================================
+   AUTENTICACIÓN Y PERMISOS
+   ========================================================================= */
+onAuthStateChanged(auth, async (user) => {
+  currentUser = user;
+  if (user){
+    editorAllowed = await isEditor(app, user, "recordatorios");
+    editBtn.style.display = editorAllowed ? "" : "none";
+  }
+  await loadAll();
+});
+
+/* =========================================================================
+   CARGA DE FOTOS PUBLICADAS (Firebase Storage)
+   ========================================================================= */
+async function loadCategory(key){
+  const { folder } = CATEGORIES[key];
+  const res = await listAll(ref(storage, folder));
+  const items = await Promise.all(res.items.map(async (itemRef) => {
+    const [url, meta] = await Promise.all([getDownloadURL(itemRef), getMetadata(itemRef)]);
+    return { name: itemRef.name, url, time: meta.timeCreated };
+  }));
+  items.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+  // Si hay un orden manual guardado, se respeta ese orden por sobre la fecha.
+  let savedOrder = [];
+  try{
+    const orderSnap = await getDoc(doc(db, "recordatoriosOrder", key));
+    if (orderSnap.exists()) savedOrder = orderSnap.data().order || [];
+  } catch (err){
+    console.warn("No se pudo leer el orden guardado de", key, err);
+  }
+  if (savedOrder.length){
+    const byName = new Map(items.map(it => [it.name, it]));
+    const ordered = savedOrder.map(name => byName.get(name)).filter(Boolean);
+    const remaining = items.filter(it => !savedOrder.includes(it.name));
+    items.splice(0, items.length, ...ordered, ...remaining);
+  }
+
+  photosCache[key] = items;
+}
+
+async function loadAll(){
+  try{ await Promise.all([loadCategory("nuevos"), loadCategory("anteriores")]); }
+  catch (err){ console.error("No se pudieron cargar los recordatorios:", err); }
+  renderAll();
+}
+
+/* =========================================================================
+   MODO EDICIÓN
+   ========================================================================= */
+editBtn.addEventListener("click", () => {
+  editMode = true;
+  editBtn.style.display = "none";
+  editActions.style.display = "flex";
+  renderAll();
+});
+
+function clearPending(){
+  Object.values(pendingUploads).flat().forEach(u => URL.revokeObjectURL(u.previewUrl));
+  pendingUploads = { nuevos: [], anteriores: [] };
+  pendingDeletes = { nuevos: new Set(), anteriores: new Set() };
+  pendingMoves = [];
+}
+
+document.getElementById("cancelEditBtn").addEventListener("click", async () => {
+  clearPending();
+  editMode = false;
+  editBtn.style.display = "";
+  editActions.style.display = "none";
+  if (orderChanged.nuevos || orderChanged.anteriores){
+    orderChanged = { nuevos: false, anteriores: false };
+    await loadAll(); // deshace cualquier reordenamiento no publicado
+  } else {
+    renderAll();
+  }
+});
+
+/* =========================================================================
+   RENDER — combina lo publicado con los cambios pendientes
+   ========================================================================= */
+function reorderPhoto(key, name, direction){
+  const arr = photosCache[key];
+  const i = arr.findIndex(p => p.name === name);
+  const j = i + direction;
+  if (i < 0 || j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  orderChanged[key] = true;
+  renderAll();
+}
+
+function getDraftItems(key){
+  const movedAwayNames = new Set(pendingMoves.filter(m => m.from === key).map(m => m.name));
+  const live = photosCache[key]
+    .filter(item => !movedAwayNames.has(item.name))
+    .map(item => ({ kind: "live", name: item.name, url: item.url, deleting: pendingDeletes[key].has(item.name) }));
+
+  const movedIn = pendingMoves.filter(m => m.to === key).map(m => ({ kind: "moved", name: m.name, url: m.url, from: m.from }));
+  const uploads = pendingUploads[key].map(u => ({ kind: "upload", tempId: u.tempId, url: u.previewUrl }));
+
+  return [...uploads, ...movedIn, ...live];
+}
+
+function renderAll(){ renderList("nuevos"); renderList("anteriores"); }
+
+function renderList(key, forPreview = false){
+  const { listId } = CATEGORIES[key];
+  const list = document.getElementById(listId);
+  const items = getDraftItems(key);
+  const otherKey = key === "nuevos" ? "anteriores" : "nuevos";
+
+  let html = items.map(item => {
+    if (item.kind === "upload"){
+      return `
+        <div class="photo-item pending-upload">
+          <span class="photo-tag">Nueva foto (sin publicar)</span>
+          <img src="${item.url}" alt="Recordatorio nuevo" draggable="false">
+          ${!forPreview ? `
+            <div class="photo-actions">
+              <button class="del-btn" data-kind="upload" data-id="${item.tempId}" data-key="${key}" title="Quitar" type="button">
+                <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
+              </button>
+            </div>
+          ` : ""}
+        </div>
+      `;
+    }
+    if (item.kind === "moved"){
+      return `
+        <div class="photo-item pending-moved">
+          <span class="photo-tag">Se moverá aquí</span>
+          <img src="${item.url}" alt="Recordatorio" draggable="false">
+          ${!forPreview ? `
+            <div class="photo-actions">
+              <button class="undo-btn" data-kind="undo-move" data-name="${item.name}" title="Deshacer" type="button">
+                <svg viewBox="0 0 24 24"><path d="M9 14l-4-4 4-4M5 10h9a5 5 0 010 10h-1"/></svg>
+              </button>
+            </div>
+          ` : ""}
+        </div>
+      `;
+    }
+    // live
+    const liveIdx = photosCache[key].findIndex(p => p.name === item.name);
+    const isFirst = liveIdx <= 0;
+    const isLast = liveIdx >= photosCache[key].length - 1;
+    return `
+      <div class="photo-item ${item.deleting ? "pending-delete" : ""}">
+        ${item.deleting ? `<span class="photo-tag">Se eliminará</span>` : ""}
+        <img src="${item.url}" alt="Recordatorio" draggable="false">
+        ${!forPreview && !item.deleting ? `
+          <div class="reorder-actions">
+            <button class="reorder-btn" data-kind="reorder-up" data-key="${key}" data-name="${item.name}" title="Subir" type="button" ${isFirst ? "disabled" : ""}>
+              <svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>
+            </button>
+            <button class="reorder-btn" data-kind="reorder-down" data-key="${key}" data-name="${item.name}" title="Bajar" type="button" ${isLast ? "disabled" : ""}>
+              <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+          </div>
+        ` : ""}
+        ${!forPreview ? `
+          <div class="photo-actions">
+            ${item.deleting ? `
+              <button class="undo-btn" data-kind="undo-delete" data-name="${item.name}" data-key="${key}" title="Deshacer" type="button">
+                <svg viewBox="0 0 24 24"><path d="M9 14l-4-4 4-4M5 10h9a5 5 0 010 10h-1"/></svg>
+              </button>
+            ` : `
+              <button class="move-btn" data-kind="move" data-name="${item.name}" data-url="${item.url}" data-from="${key}" data-to="${otherKey}" title="Mover a ${CATEGORIES[otherKey].label}" type="button">
+                <svg viewBox="0 0 24 24"><path d="M7 7h10M7 7l4-4M7 7l4 4M17 17H7M17 17l-4 4M17 17l-4-4"/></svg>
+              </button>
+              <button class="del-btn" data-kind="delete" data-name="${item.name}" data-key="${key}" title="Eliminar" type="button">
+                <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
+              </button>
+            `}
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }).join("");
+
+  if (editMode && !forPreview){
+    html += `
+      <div class="upload-tile" id="uploadTile-${key}">
+        <svg viewBox="0 0 24 24"><path d="M12 4v12M6 10l6-6 6 6"/><path d="M4 20h16"/></svg>
+        <span>Agregar foto</span>
+      </div>
+    `;
+  }
+
+  if (!html){
+    html = `<div class="empty-state">${editMode ? "Todavía no hay fotos aquí. Usa \u201c+ Agregar foto\u201d." : "Todavía no hay recordatorios en esta sección."}</div>`;
+  }
+
+  list.innerHTML = html;
+  if (forPreview) return;
+
+  list.querySelectorAll(".photo-item img").forEach(img => {
+    img.addEventListener("click", () => openLightbox(img.src));
+  });
+  list.querySelectorAll("[data-kind='delete']").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      pendingDeletes[btn.dataset.key].add(btn.dataset.name);
+      renderAll();
+    });
+  });
+  list.querySelectorAll("[data-kind='undo-delete']").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      pendingDeletes[btn.dataset.key].delete(btn.dataset.name);
+      renderAll();
+    });
+  });
+  list.querySelectorAll("[data-kind='move']").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      pendingMoves.push({ name: btn.dataset.name, url: btn.dataset.url, from: btn.dataset.from, to: btn.dataset.to });
+      renderAll();
+    });
+  });
+  list.querySelectorAll("[data-kind='undo-move']").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      pendingMoves = pendingMoves.filter(m => m.name !== btn.dataset.name);
+      renderAll();
+    });
+  });
+  list.querySelectorAll("[data-kind='reorder-up']").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      reorderPhoto(btn.dataset.key, btn.dataset.name, -1);
+    });
+  });
+  list.querySelectorAll("[data-kind='reorder-down']").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      reorderPhoto(btn.dataset.key, btn.dataset.name, 1);
+    });
+  });
+  list.querySelectorAll("[data-kind='upload']").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const key = btn.dataset.key;
+      const idx = pendingUploads[key].findIndex(u => u.tempId === btn.dataset.id);
+      if (idx >= 0){
+        URL.revokeObjectURL(pendingUploads[key][idx].previewUrl);
+        pendingUploads[key].splice(idx, 1);
+      }
+      renderAll();
+    });
+  });
+
+  const uploadTile = document.getElementById(`uploadTile-${key}`);
+  if (uploadTile){
+    uploadTile.addEventListener("click", () => document.getElementById(CATEGORIES[key].inputId).click());
+  }
+}
+
+/* =========================================================================
+   LIGHTBOX (ver a pantalla completa)
+   ========================================================================= */
+function openLightbox(url){ lightboxImg.src = url; lightboxOverlay.classList.add("show"); }
+function closeLightbox(){ lightboxOverlay.classList.remove("show"); lightboxImg.src = ""; }
+lightboxClose.addEventListener("click", closeLightbox);
+lightboxOverlay.addEventListener("click", (e) => { if (e.target === lightboxOverlay) closeLightbox(); });
+
+/* =========================================================================
+   SELECCIONAR FOTOS — quedan pendientes en memoria hasta "Publicar"
+   No se recortan ni se fuerzan a cuadrado: se guarda la imagen completa,
+   solo se reduce el peso si es muy pesada, sin cambiar su forma.
+   ========================================================================= */
+async function toJpegBlob(file, maxSize = 1800, quality = 0.88){
+  try{
+    const bitmap = await createImageBitmap(file);
+    let { width, height } = bitmap;
+    if (width > maxSize || height > maxSize){
+      const scale = maxSize / Math.max(width, height);
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width; canvas.height = height;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, width, height);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+    return blob || file;
+  } catch (err){
+    console.warn("No se pudo procesar la imagen, se deja el archivo original:", err);
+    return file;
+  }
+}
+
+Object.keys(CATEGORIES).forEach(key => {
+  const input = document.getElementById(CATEGORIES[key].inputId);
+  input.addEventListener("change", async () => {
+    const files = Array.from(input.files);
+    input.value = "";
+    for (const file of files){
+      const blob = await toJpegBlob(file);
+      pendingUploads[key].push({
+        tempId: "u" + Date.now() + Math.random().toString(16).slice(2),
+        blob,
+        previewUrl: URL.createObjectURL(blob),
+      });
+    }
+    renderAll();
+  });
+});
+
+/* =========================================================================
+   VISTA PREVIA
+   ========================================================================= */
+document.getElementById("previewBtn").addEventListener("click", () => {
+  openModal(`
+    <button class="modal-close" id="modalCloseBtn">&times;</button>
+    <div class="modal-title">Vista previa</div>
+    <p class="hint">Así se va a ver para todos una vez que publiques. Todavía no se ha guardado nada.</p>
+    <div class="section-label" style="margin-top:0;">Recordatorios Nuevos</div>
+    <div class="photo-list" id="previewNuevos"></div>
+    <div class="section-label">Recordatorios Anteriores</div>
+    <div class="photo-list" id="previewAnteriores"></div>
+  `);
+  document.getElementById("modalCloseBtn").addEventListener("click", closeModal);
+  renderPreviewInto("nuevos", "previewNuevos");
+  renderPreviewInto("anteriores", "previewAnteriores");
+});
+
+function renderPreviewInto(key, targetId){
+  const items = getDraftItems(key).filter(i => !(i.kind === "live" && i.deleting));
+  const target = document.getElementById(targetId);
+  target.innerHTML = items.length
+    ? items.map(item => `<div class="photo-item"><img src="${item.url}" alt="Recordatorio" draggable="false"></div>`).join("")
+    : `<div class="empty-state">Sin fotos en esta sección.</div>`;
+}
+
+/* =========================================================================
+   PUBLICAR — recién aquí se tocan de verdad los archivos en Storage
+   ========================================================================= */
+document.getElementById("publishBtn").addEventListener("click", async () => {
+  const publishBtn = document.getElementById("publishBtn");
+  publishBtn.disabled = true;
+  publishBtn.textContent = "Publicando…";
+  try{
+    const newAtTop = { nuevos: [], anteriores: [] };
+
+    for (const key of Object.keys(CATEGORIES)){
+      for (const u of pendingUploads[key]){
+        const filename = `${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`;
+        await uploadBytes(ref(storage, `${CATEGORIES[key].folder}/${filename}`), u.blob, { contentType: "image/jpeg" });
+        newAtTop[key].push(filename);
+      }
+    }
+    const movedAway = { nuevos: new Set(), anteriores: new Set() };
+    for (const m of pendingMoves){
+      const fromRef = ref(storage, `${CATEGORIES[m.from].folder}/${m.name}`);
+      const blob = await (await fetch(m.url)).blob();
+      await uploadBytes(ref(storage, `${CATEGORIES[m.to].folder}/${m.name}`), blob, { contentType: "image/jpeg" });
+      await deleteObject(fromRef);
+      movedAway[m.from].add(m.name);
+      newAtTop[m.to].push(m.name);
+    }
+    for (const key of Object.keys(CATEGORIES)){
+      for (const name of pendingDeletes[key]){
+        await deleteObject(ref(storage, `${CATEGORIES[key].folder}/${name}`));
+      }
+    }
+
+    // Guarda el orden final: lo nuevo/movido arriba, luego el orden actual
+    // (ya reordenado a mano si corresponde), sin lo eliminado ni lo movido afuera.
+    for (const key of Object.keys(CATEGORIES)){
+      const remaining = photosCache[key]
+        .filter(p => !pendingDeletes[key].has(p.name) && !movedAway[key].has(p.name))
+        .map(p => p.name);
+      const finalOrder = [...newAtTop[key], ...remaining];
+      await setDoc(doc(db, "recordatoriosOrder", key), { order: finalOrder });
+    }
+
+    clearPending();
+    orderChanged = { nuevos: false, anteriores: false };
+    await loadAll();
+    editMode = false;
+    editBtn.style.display = "";
+    editActions.style.display = "none";
+  } catch (err){
+    console.error("No se pudieron publicar los cambios:", err);
+    alert("Algo falló al publicar. Revisa tu conexión e inténtalo de nuevo.");
+  }
+  publishBtn.disabled = false;
+  publishBtn.textContent = "Publicar cambios";
+});
+</script>
+
+</body>
+</html>
