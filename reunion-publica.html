@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#0a1030">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Reunión Pública — Paul Harris</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;1,500;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script type="module" src="assets/js/auth-guard.js"></script>
+<style>
+  html.auth-pending{ visibility:hidden; }
+
+  :root{
+    --bg-0:#04050c; --bg-1:#0a1030; --bg-2:#161f5c; --bg-3:#2b3bb0; --bg-4:#3f4fe0;
+    --glow:#6d86ff; --glow-soft:#7fa0ff;
+    --ink:#f4f5fb; --ink-dim:#aeb6e0; --ink-faint:#7078a8;
+    --line: rgba(255,255,255,0.10);
+    --card: rgba(255,255,255,0.045);
+    --card-hover: rgba(255,255,255,0.09);
+    --radius:14px;
+    --sans:'Outfit', sans-serif;
+    --serif:'Playfair Display', serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:var(--sans);
+    background:
+      radial-gradient(ellipse 120% 60% at 50% -10%, #0e1650 0%, transparent 55%),
+      linear-gradient(115deg, var(--bg-0) 0%, var(--bg-1) 28%, var(--bg-2) 55%, var(--bg-3) 78%, var(--bg-4) 100%);
+    background-attachment: fixed;
+    color:var(--ink);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit; text-decoration:none;}
+  button{font-family:inherit;}
+  :focus-visible{ outline:2px solid var(--glow-soft); outline-offset:3px; border-radius:8px; }
+
+  .wrap{ max-width:680px; margin:0 auto; padding:0 24px 90px; }
+  @media (min-width:900px){ .wrap{ max-width:760px; padding:0 40px 100px; } }
+
+  .topbar{ display:flex; align-items:center; justify-content:space-between; padding:26px 0 0; }
+  .back-link{ display:inline-flex; align-items:center; gap:8px; font-size:12.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-faint); }
+  .back-link:hover{ color:var(--ink-dim); }
+  .back-link svg{ width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.6; }
+  .auth-slot{ display:flex; align-items:center; gap:12px; }
+  .auth-logout{
+    font-family:var(--sans); font-size:12px; letter-spacing:0.05em; color:var(--ink-dim);
+    background:rgba(255,255,255,0.06); border:1px solid var(--line); border-radius:999px;
+    padding:7px 14px; cursor:pointer; transition:background .25s ease, border-color .25s ease;
+  }
+  .auth-logout:hover{ background:var(--card-hover); border-color:rgba(255,255,255,.22); }
+
+  .hero{ padding:22px 0 10px; text-align:center; }
+  .eyebrow{ font-family:var(--serif); font-style:normal; font-size:20px; color:var(--ink-dim); display:block; }
+  .title-main{
+    font-weight:600; font-size:clamp(30px,7vw,42px); margin-top:2px; display:block;
+    background:linear-gradient(180deg,#fff 0%, #c9d3ff 100%); -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+
+  .edit-link-row{ display:flex; justify-content:flex-end; margin-top:18px; }
+  .edit-link{
+    display:inline-flex; align-items:center; gap:8px; font-size:12.5px; font-weight:500;
+    padding:9px 16px; border-radius:999px; border:1px solid var(--line); background:var(--card); color:var(--ink-dim);
+  }
+  .edit-link:hover{ background:var(--card-hover); }
+
+  .empty-state{
+    margin-top:40px; padding:40px 24px; text-align:center; color:var(--ink-faint); font-size:14px;
+    border:1px dashed var(--line); border-radius:var(--radius);
+  }
+
+  .week-card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:24px 24px 20px; margin-top:22px; backdrop-filter:blur(10px);
+  }
+  .week-date{
+    font-family:var(--sans); font-weight:700; font-size:18px; color:var(--ink);
+    margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid var(--line);
+  }
+
+  .hosp-row{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+  .hosp-chip{
+    font-size:11px; letter-spacing:0.04em; text-transform:uppercase; font-weight:600;
+    padding:5px 12px; border-radius:999px; background:rgba(127,160,255,0.12); color:var(--glow-soft);
+  }
+
+  .field-row{ margin-bottom:14px; }
+  .field-label{ font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:3px; }
+  .field-value{ font-size:15px; color:var(--ink); font-weight:500; line-height:1.4; }
+  .field-value.empty{ color:var(--ink-faint); font-weight:400; }
+
+  .subsection{
+    margin-top:18px; padding-top:16px; border-top:1px solid var(--line);
+  }
+  .subsection-title{
+    font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--glow-soft);
+    font-weight:600; margin-bottom:12px;
+  }
+
+  footer{ padding:60px 0 10px; text-align:center; }
+  .footer-sub{ font-size:11.5px; letter-spacing:0.15em; text-transform:uppercase; color:var(--ink-faint); opacity:0.6; }
+  .footer-updated{ font-size:11px; color:var(--ink-faint); margin-top:10px; }
+</style>
+</head>
+<body>
+
+<main class="wrap">
+
+  <div class="topbar">
+    <a class="back-link" href="index.html">
+      <svg viewBox="0 0 24 24"><path d="M11 4L5 10l6 6M5 10h14"/></svg>
+      Plataforma PH
+    </a>
+    <div class="auth-slot" id="authSlot"></div>
+  </div>
+
+  <header class="hero">
+    <span class="eyebrow">Sitio Paul Harris</span>
+    <span class="title-main" id="pageTitle">Reunión Pública</span>
+  </header>
+
+  <div class="edit-link-row" id="editLinkRow" style="display:none;">
+    <a class="edit-link" href="reunion-publica-editor.html">
+      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      Editar programa
+    </a>
+  </div>
+
+  <div id="content"></div>
+
+  <footer>
+    <div class="footer-sub">Plataforma PH</div>
+    <div class="footer-updated" id="updatedNote"></div>
+  </footer>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { firebaseConfig } from "./assets/js/firebase-config.js";
+import { isEditor } from "./assets/js/editors.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const editLinkRow = document.getElementById("editLinkRow");
+
+onAuthStateChanged(auth, async (user) => {
+  if (user){
+    const editor = await isEditor(app, user, "reunionpublica");
+    editLinkRow.style.display = editor ? "flex" : "none";
+  }
+  loadProgram();
+});
+
+function esc(s){
+  return (s || "").replace(/[&<>"']/g, m => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m]));
+}
+
+function renderWeek(week){
+  const hosp = (week.hospitalidad || []).map(g => `<span class="hosp-chip">${esc(g)}</span>`).join("");
+
+  const salidaHTML = week.salida ? `
+    <div class="subsection">
+      <div class="subsection-title">Orador local que sale</div>
+      ${week.salida.fechaDisplay ? `
+        <div class="field-row"><div class="field-label">Fecha</div><div class="field-value">${esc(week.salida.fechaDisplay)}</div></div>
+      ` : ""}
+      <div class="field-row"><div class="field-label">Orador</div><div class="field-value ${week.salida.orador ? "" : "empty"}">${esc(week.salida.orador) || "Sin asignar"}</div></div>
+      <div class="field-row"><div class="field-label">Congregación visitada</div><div class="field-value ${week.salida.congregacionVisitada ? "" : "empty"}">${esc(week.salida.congregacionVisitada) || "Sin asignar"}</div></div>
+    </div>
+  ` : "";
+
+  const atalayaHTML = `
+    <div class="subsection">
+      <div class="subsection-title">Estudio de La Atalaya</div>
+      <div class="field-row"><div class="field-label">Conductor</div><div class="field-value ${week.atalaya.conductor ? "" : "empty"}">${esc(week.atalaya.conductor) || "Sin asignar"}</div></div>
+      ${week.atalaya.lector ? `<div class="field-row"><div class="field-label">Lector</div><div class="field-value">${esc(week.atalaya.lector)}</div></div>` : ""}
+    </div>
+  `;
+
+  const extraHTML = (week.extraBlocks || []).map(b => `
+    <div class="subsection">
+      <div class="subsection-title">${esc(b.titulo)}</div>
+      <div class="field-row"><div class="field-label">Orador</div><div class="field-value ${b.orador ? "" : "empty"}">${esc(b.orador) || "Sin asignar"}</div></div>
+      ${b.tituloDiscurso ? `<div class="field-row"><div class="field-label">Tema</div><div class="field-value">${esc(b.tituloDiscurso)}</div></div>` : ""}
+    </div>
+  `).join("");
+
+  return `
+    <div class="week-card">
+      <div class="week-date">${esc(week.fechaDisplay) || "Sin fecha"}</div>
+      ${hosp ? `<div class="hosp-row">${hosp}</div>` : ""}
+      <div class="field-row"><div class="field-label">Presidente</div><div class="field-value ${week.presidente ? "" : "empty"}">${esc(week.presidente) || "Sin asignar"}</div></div>
+      <div class="field-row"><div class="field-label">Tema del discurso</div><div class="field-value ${week.tituloDiscurso ? "" : "empty"}">${esc(week.tituloDiscurso) || "Sin asignar"}</div></div>
+      <div class="field-row"><div class="field-label">Orador</div><div class="field-value ${week.oradorVisitante ? "" : "empty"}">${esc(week.oradorVisitante) || "Sin asignar"}</div></div>
+      <div class="field-row"><div class="field-label">Congregación</div><div class="field-value ${week.congregacion ? "" : "empty"}">${esc(week.congregacion) || "Sin asignar"}</div></div>
+      ${salidaHTML}
+      ${atalayaHTML}
+      ${extraHTML}
+    </div>
+  `;
+}
+
+async function loadProgram(){
+  const content = document.getElementById("content");
+  try{
+    const snap = await getDoc(doc(db, "reunionpublica", "published"));
+    if (!snap.exists() || !snap.data().weeks || snap.data().weeks.length === 0){
+      content.innerHTML = `<div class="empty-state">Todavía no se ha publicado un programa. Vuelve a revisar más tarde.</div>`;
+      return;
+    }
+    const data = snap.data();
+    if (data.appTitle){
+      document.getElementById("pageTitle").textContent = "Reunión Pública";
+    }
+    content.innerHTML = data.weeks.map(renderWeek).join("");
+
+    if (data.publishedAt){
+      const d = new Date(data.publishedAt);
+      document.getElementById("updatedNote").textContent =
+        "Última actualización: " + d.toLocaleDateString("es-CL", { day:"numeric", month:"long", year:"numeric" }) +
+        " " + d.toLocaleTimeString("es-CL", { hour:"2-digit", minute:"2-digit" });
+    }
+  } catch (err){
+    console.error("No se pudo cargar el programa:", err);
+    content.innerHTML = `<div class="empty-state">No se pudo cargar el programa. Intenta recargar la página.</div>`;
+  }
+}
+</script>
+
+</body>
+</html>
