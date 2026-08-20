@@ -1,0 +1,2150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#0a1030">
+<title>Editor · Reunión Pública</title>
+<meta name="apple-mobile-web-app-title" content="Reunión Pública">
+<meta name="application-name" content="Reunión Pública">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { firebaseConfig } from "./assets/js/firebase-config.js";
+  import { isAllowed } from "./assets/js/allowlist.js";
+  import { isEditor } from "./assets/js/editors.js";
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user){
+      location.replace("login.html?redirect=reunion-publica-editor.html");
+      return;
+    }
+    const allowed = await isAllowed(app, user);
+    if (!allowed){
+      const deniedEmail = user.email || "";
+      await signOut(auth);
+      location.replace(`login.html?denied=1&email=${encodeURIComponent(deniedEmail)}`);
+      return;
+    }
+    const editor = await isEditor(app, user, "reunionpublica");
+    if (!editor){
+      // esta persona puede entrar al sitio, pero no está autorizada a editar
+      // este programa en particular: la mandamos a la vista pública en vez
+      // de mostrarle el editor completo.
+      location.replace("reunion-publica.html");
+      return;
+    }
+    document.documentElement.classList.remove("auth-pending");
+    window.__phUser = user;
+    const slot = document.getElementById("authSlot");
+    if (slot){
+      slot.innerHTML = `<button class="ph-logout" id="phLogoutBtn" type="button">Cerrar sesión</button>`;
+      document.getElementById("phLogoutBtn").addEventListener("click", () => signOut(auth));
+    }
+  });
+</script>
+<style>
+  html.auth-pending{ visibility:hidden; }
+
+  .ph-topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 22px; background:#04050c; border-bottom:1px solid rgba(255,255,255,0.1);
+  }
+  .ph-back-link{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    font-size:12.5px; letter-spacing:0.08em; text-transform:uppercase;
+    color:#7078a8; text-decoration:none;
+  }
+  .ph-back-link:hover{ color:#aeb6e0; }
+  .ph-back-link svg{ width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.6; }
+  .ph-logout{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    font-size:12px; letter-spacing:0.05em; color:#aeb6e0;
+    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.16); border-radius:999px;
+    padding:7px 14px; cursor:pointer;
+  }
+  .ph-logout:hover{ background:rgba(255,255,255,0.14); }
+
+  .publish-btn{
+    background:#3f4fe0 !important;
+    color:#ffffff !important;
+    border:1px solid #3f4fe0 !important;
+    font-weight:700 !important;
+  }
+  .publish-btn:hover{ background:#2b3bb0 !important; }
+
+  .pv-overlay{
+    display:none; position:fixed; inset:0; background:rgba(4,5,12,0.8);
+    z-index:80; align-items:flex-start; justify-content:center; padding:6vh 18px; overflow-y:auto;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  }
+  .pv-overlay.show{ display:flex; }
+  .pv-box{
+    background:#0e1442; border:1px solid #2b355f; border-radius:16px;
+    max-width:640px; width:100%; padding:26px 24px; margin-bottom:6vh; color:#f4f5fb;
+  }
+  .pv-close{
+    float:right; background:none; border:none; color:#7078a8; cursor:pointer; font-size:22px; line-height:1;
+  }
+  .pv-title{ font-weight:700; font-size:19px; margin-bottom:6px; }
+  .pv-hint{ font-size:12.5px; color:#7078a8; margin-bottom:18px; line-height:1.5; }
+  .pv-empty{ padding:30px; text-align:center; color:#7078a8; }
+
+  .pv-week{
+    border:1px solid #2b355f; border-radius:12px; padding:18px 18px 16px; margin-bottom:16px; background:rgba(255,255,255,0.03);
+  }
+  .pv-date{
+    font-weight:700; font-size:15.5px; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #2b355f;
+  }
+  .pv-line{ font-size:13.5px; color:#e2e5f7; margin-bottom:8px; line-height:1.5; }
+  .pv-song{ color:#9fb3ff; }
+  .pv-sub{ margin-top:12px; padding-top:10px; border-top:1px dashed #2b355f; }
+  .pv-sub-title{ font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#7fa0ff; font-weight:700; margin-bottom:6px; }
+  :root{
+    --bg:#e7ebfa;
+    --bg-2:#d7defa;
+    --panel-gray:#eef0fb;
+    --panel-gray-border:#c5cdec;
+    --box-bg:#edf0fc;
+    --box-border:#a9b6e6;
+    --text:#141a3d;
+    --text-soft:#4a5590;
+    --accent:#3f4fe0;
+    --accent-dark:#2b3bb0;
+    --topbar-bg:#161f5c;
+    --topbar-text:#f4f5fb;
+    --input-bg:#ffffff;
+    --input-border:#c1cbee;
+    --chip-bg:#e7ebfa;
+    --chip-border:#a9b6e6;
+    --chip-active-bg:#3f4fe0;
+    --chip-active-text:#ffffff;
+    --danger:#c0392b;
+    --danger-bg:#fbe4e1;
+    --shadow:0 2px 10px rgba(30,45,120,0.15);
+    --atalaya-bg:#dbe3fb;
+    --atalaya-border:#8ea0e6;
+  }
+  [data-theme="dark"]{
+    --bg:#04050c;
+    --bg-2:#0a1030;
+    --panel-gray:#12183f;
+    --panel-gray-border:#2b355f;
+    --box-bg:#0e1442;
+    --box-border:#3450a6;
+    --text:#f4f5fb;
+    --text-soft:#aeb6e0;
+    --accent:#7fa0ff;
+    --accent-dark:#5f78e8;
+    --topbar-bg:#04050c;
+    --topbar-text:#f4f5fb;
+    --input-bg:#0a1030;
+    --input-border:#2b355f;
+    --chip-bg:#12183f;
+    --chip-border:#3450a6;
+    --chip-active-bg:#7fa0ff;
+    --chip-active-text:#04050c;
+    --danger:#e0503f;
+    --danger-bg:#3a1710;
+    --shadow:0 2px 12px rgba(0,0,0,0.5);
+    --atalaya-bg:#161f5c;
+    --atalaya-border:#3f4fe0;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg,var(--bg),var(--bg-2));
+    color:var(--text);
+    min-height:100vh;
+    transition:background .3s,color .3s;
+  }
+  h1,h2{font-family:Georgia,"Times New Roman",serif;}
+
+  .topbar{
+    background:var(--topbar-bg);
+    color:var(--topbar-text);
+    padding:14px 22px;
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    align-items:center;
+    gap:10px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.25);
+    position:sticky;
+    top:0;
+    z-index:50;
+  }
+  .topbar h1{
+    grid-column:2;
+    margin:0;
+    font-size:1.2rem;
+    letter-spacing:0.5px;
+    text-align:center;
+    white-space:nowrap;
+  }
+  #appTitleEditable{
+    cursor:text;
+    border-radius:6px;
+    padding:2px 6px;
+    margin:-2px -2px;
+  }
+  #appTitleEditable:hover{
+    background:rgba(255,255,255,0.12);
+  }
+  #appTitleEditable:focus{
+    outline:2px dashed var(--topbar-text);
+    outline-offset:2px;
+    background:rgba(255,255,255,0.12);
+  }
+  .tools{
+    grid-column:3;
+    justify-self:end;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  @media (max-width:720px){
+    .topbar{grid-template-columns:1fr;justify-items:center;padding:14px 16px;}
+    .topbar h1{
+      grid-column:1;
+      white-space:normal;
+      overflow-wrap:break-word;
+      word-break:break-word;
+      max-width:100%;
+      font-size:1.05rem;
+      line-height:1.35;
+    }
+    .tools{grid-column:1;justify-self:center;justify-content:center;}
+  }
+  .tool-btn{
+    background:rgba(255,255,255,0.12);
+    color:var(--topbar-text);
+    border:1px solid rgba(255,255,255,0.25);
+    border-radius:8px;
+    padding:8px 12px;
+    font-size:0.9rem;
+    cursor:pointer;
+    transition:background .2s;
+    display:flex;align-items:center;gap:6px;
+  }
+  .tool-btn:hover:not(:disabled){background:rgba(255,255,255,0.25);}
+  .tool-btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .print-btn{
+    background:#fdfaf3;
+    color:#5a3d22;
+    border:1px solid #d9c7a3;
+  }
+  .print-btn:hover{background:#ffffff;}
+
+  main.sheet{
+    max-width:760px;
+    margin:26px auto 60px;
+    padding:0 18px;
+  }
+
+  .week-wrapper{margin-bottom:6px;}
+  .week-topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:10px;
+    padding:0 2px;
+  }
+  .week-topbar-label{
+    font-size:0.8rem;
+    font-weight:700;
+    letter-spacing:0.5px;
+    text-transform:uppercase;
+    color:var(--text-soft);
+  }
+  .delete-week-btn{
+    width:auto;
+    padding:6px 12px;
+    font-size:0.8rem;
+    font-weight:700;
+    white-space:nowrap;
+  }
+  .week-topbar-controls{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .week-move-btn{
+    background:var(--panel-gray);
+    color:var(--text);
+    border:1px solid var(--panel-gray-border);
+    padding:6px 10px;
+    font-size:0.85rem;
+    font-weight:700;
+    line-height:1;
+  }
+  .week-move-btn:hover:not(:disabled){background:var(--box-border);}
+  .week-move-btn:disabled{opacity:0.35;cursor:not-allowed;}
+
+  .box{
+    border-radius:14px;
+    padding:20px 22px;
+    margin-bottom:22px;
+    box-shadow:var(--shadow);
+  }
+  .gray-box{
+    background:var(--panel-gray);
+    border:1px solid var(--panel-gray-border);
+  }
+  .brown-box{
+    background:var(--box-bg);
+    border:1px solid var(--box-border);
+  }
+  .atalaya-box{
+    background:var(--atalaya-bg);
+    border:1px solid var(--atalaya-border);
+  }
+  .box h2{
+    margin:0 0 16px;
+    font-size:1.15rem;
+    color:var(--accent-dark);
+    letter-spacing:0.3px;
+    border-bottom:2px solid var(--box-border);
+    padding-bottom:8px;
+  }
+  .gray-box h2{border-bottom:2px solid var(--panel-gray-border);}
+  .atalaya-box h2{border-bottom:2px solid var(--atalaya-border);}
+
+  .section-header{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin-bottom:16px;
+    border-bottom:2px solid var(--box-border);
+    padding-bottom:8px;
+  }
+  .section-header h2{
+    margin:0;
+    border:none;
+    padding:0;
+    flex:1 1 auto;
+    min-width:0;
+  }
+  .section-header h2[contenteditable="true"]{
+    cursor:text;
+    border-radius:6px;
+    padding:2px 6px;
+    margin:-2px -6px;
+  }
+  .section-header h2[contenteditable="true"]:hover{
+    background:rgba(138,90,52,0.08);
+  }
+  .section-header h2[contenteditable="true"]:focus{
+    outline:2px dashed var(--accent);
+    outline-offset:2px;
+    background:var(--input-bg);
+  }
+  .fecha-inline{
+    flex:0 0 auto;
+    min-width:0;
+  }
+  .fecha-inline input[type="date"]{
+    width:150px;
+    padding:7px 8px;
+    font-size:0.85rem;
+  }
+
+  .field-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px 18px;
+    margin-bottom:14px;
+  }
+  .field-grid:last-child{margin-bottom:0;}
+  .field-grid-presidente{
+    display:grid;
+    grid-template-columns:0.6fr 2fr;
+    gap:14px 18px;
+    margin-bottom:14px;
+  }
+  @media (max-width:560px){
+    .field-grid{grid-template-columns:1fr;}
+    .field-grid-presidente{grid-template-columns:1fr;}
+  }
+
+  label{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    font-size:0.78rem;
+    font-weight:600;
+    letter-spacing:0.4px;
+    color:var(--text-soft);
+    text-transform:uppercase;
+  }
+  input[type="text"], input[type="date"]{
+    font-family:inherit;
+    font-size:0.95rem;
+    font-weight:400;
+    text-transform:none;
+    color:var(--text);
+    background:var(--input-bg);
+    border:1px solid var(--input-border);
+    border-radius:8px;
+    padding:9px 10px;
+    width:100%;
+  }
+  input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+
+  .titulo-field{grid-column:1 / -1;}
+  .titulo-row{display:flex;gap:10px;align-items:center;}
+  .numero-input{max-width:80px;text-align:center;flex:0 0 auto;}
+  .titulo-display{
+    flex:1;
+    font-size:0.95rem;
+    font-weight:600;
+    text-transform:none;
+    color:var(--accent-dark);
+    padding:9px 10px;
+    background:var(--input-bg);
+    border:1px dashed var(--input-border);
+    border-radius:8px;
+    min-height:38px;
+    display:flex;
+    align-items:center;
+  }
+  .titulo-display.not-found{color:var(--danger);font-style:italic;}
+  .titulo-display-wrap{flex:1;display:flex;min-width:0;}
+  .titulo-display-manual{
+    flex:1;
+    width:100%;
+    font-family:inherit;
+    font-size:0.95rem;
+    font-weight:600;
+    text-transform:none;
+    color:var(--text);
+    padding:9px 10px;
+    background:var(--input-bg);
+    border:1px solid var(--accent);
+    border-radius:8px;
+    min-height:38px;
+  }
+  .titulo-display-manual::placeholder{color:var(--text-soft);font-weight:400;}
+
+  .hospitalidad{margin-top:18px;}
+  .hosp-label{
+    display:block;
+    font-size:0.78rem;
+    font-weight:600;
+    letter-spacing:0.4px;
+    color:var(--text-soft);
+    text-transform:uppercase;
+    margin-bottom:8px;
+  }
+  .chip-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{
+    background:var(--chip-bg);
+    border:1px solid var(--chip-border);
+    color:var(--text);
+    border-radius:20px;
+    padding:7px 16px;
+    font-size:0.85rem;
+    font-weight:600;
+    cursor:pointer;
+    transition:background .15s,color .15s;
+  }
+  .chip.active{
+    background:var(--chip-active-bg);
+    color:var(--chip-active-text);
+    border-color:var(--chip-active-bg);
+  }
+  .chip-noaplica{
+    border-style:dashed;
+    color:var(--text-soft);
+  }
+  .chip-noaplica.active{
+    background:var(--text-soft);
+    border-color:var(--text-soft);
+    color:#ffffff;
+  }
+
+  .with-delete{grid-column:1 / -1;}
+  .field-with-btn{display:flex;gap:8px;align-items:center;}
+  .field-with-btn input{flex:1;}
+  .field-with-btn .numero-input{flex:0 0 80px;}
+  .field-with-btn .titulo-display{flex:1;}
+  .field-with-btn .titulo-display-wrap{flex:1;}
+  .delete-btn{
+    background:var(--danger-bg);
+    color:var(--danger);
+    border:1px solid var(--danger);
+    border-radius:8px;
+    width:34px;height:34px;
+    flex-shrink:0;
+    cursor:pointer;
+    font-size:0.95rem;
+    line-height:1;
+  }
+  .delete-btn:hover{background:var(--danger);color:#fff;}
+
+  .add-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    background:var(--accent);
+    color:#fff8ec;
+    border:none;
+    border-radius:12px;
+    padding:14px;
+    font-size:1rem;
+    font-weight:700;
+    letter-spacing:0.3px;
+    cursor:pointer;
+    box-shadow:var(--shadow);
+  }
+  .add-btn:hover:not(:disabled){background:var(--accent-dark);}
+  .add-btn:disabled{opacity:0.45;cursor:not-allowed;}
+
+  .week-actions{
+    display:flex;
+    gap:14px;
+    margin:4px 0 34px;
+  }
+  .week-actions .add-btn{flex:1;}
+  .semana-btn{background:var(--accent-dark);}
+  .semana-btn:hover:not(:disabled){background:var(--accent);}
+
+  .extra-block{position:relative;}
+  .hidden{display:none !important;}
+
+  .print-only{display:none;}
+
+  /* ---------- IMPRESIÓN ---------- */
+  @page{ size:letter; margin:0.4in; }
+  @media print{
+    body{
+      background:#ffffff !important;
+      color:#1a1a1a !important;
+    }
+    .topbar, .ph-topbar, .week-wrapper, .week-actions{ display:none !important; }
+    main.sheet{
+      max-width:none;
+      margin:0;
+      padding:0;
+    }
+    .print-only{ display:block; }
+    .print-frame{
+      width:100%;
+      box-sizing:border-box;
+      border:2px solid #333;
+      border-radius:0;
+      padding:0.2in 0.35in;
+      -webkit-box-decoration-break:clone;
+      box-decoration-break:clone;
+    }
+    .print-frame-title{
+      text-align:center;
+      font-family:Georgia,"Times New Roman",serif;
+      font-size:1.15rem;
+      font-weight:700;
+      color:#222;
+      margin:0 0 10px;
+      padding-bottom:8px;
+      border-bottom:2px solid #333;
+    }
+    .print-row{
+      padding:14px 2px;
+      break-inside:avoid;
+      page-break-inside:avoid;
+    }
+    .print-line1{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:baseline;
+      gap:18px;
+      font-size:0.84rem;
+    }
+    .print-line1 .print-fecha-val{
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.4px;
+      color:#333;
+    }
+    .print-line1 .print-hosp-val{ color:#333; }
+    .print-line2{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:baseline;
+      gap:5px 18px;
+      margin-top:4px;
+      font-size:0.84rem;
+      color:#333;
+    }
+    .print-titulo-item{ font-size:0.78rem; }
+    .print-info-line{
+      font-size:0.84rem;
+      color:#333;
+      margin-top:2px;
+      line-height:1.35;
+    }
+    .print-info-label{
+      font-weight:700;
+      color:#111;
+    }
+    .print-subhead{
+      font-size:0.78rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.3px;
+      color:#6e4726;
+      margin-top:6px;
+    }
+    .print-separator{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      margin:0;
+      border-top:4px solid #333;
+      padding-top:8px;
+      break-after:avoid;
+      page-break-after:avoid;
+    }
+    .sep-pill{
+      width:28px;
+      height:14px;
+      background:#333;
+      border-radius:7px;
+      display:inline-block;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="ph-topbar">
+  <a class="ph-back-link" href="index.html">
+    <svg viewBox="0 0 24 24"><path d="M11 4L5 10l6 6M5 10h14"/></svg>
+    Plataforma PH
+  </a>
+  <div id="authSlot"></div>
+</div>
+
+<header class="topbar">
+  <h1>PROGRAMA REUNIÓN PÚBLICA <span id="appTitleEditable" contenteditable="true" spellcheck="false"></span></h1>
+  <div class="tools">
+    <button class="tool-btn" id="themeBtn" title="Modo claro / oscuro">🌗 Tema</button>
+    <button class="tool-btn" id="undoBtn" title="Deshacer">↶ Deshacer</button>
+    <button class="tool-btn" id="redoBtn" title="Rehacer">↷ Rehacer</button>
+    <button class="tool-btn" id="exportBtn" title="Exportar todo a un archivo .json">⬇ Exportar</button>
+    <button class="tool-btn" id="importBtn" title="Importar desde un archivo .json">⬆ Importar</button>
+    <input type="file" id="importFileInput" accept="application/json,.json" style="display:none">
+    <button class="tool-btn" id="clearAllBtn" title="Vaciar todo y empezar de cero">🗑 Vaciar todo</button>
+    <button class="tool-btn print-btn" id="printBtn" title="Imprimir">🖨 Imprimir</button>
+    <button class="tool-btn publish-btn" id="publishBtn" title="Publicar para que todos lo vean">📢 Publicar</button>
+  </div>
+</header>
+
+<main class="sheet" id="sheet">
+  <div id="weeksContainer"></div>
+  <div id="printSummary" class="print-only"></div>
+</main>
+
+<script>
+/* ================= DATOS: números y títulos de discursos ================= */
+const DISCURSOS = {
+  1:"¿Conoce bien a Dios?",
+  2:"¿Sobreviviremos a los últimos días?",
+  3:"Avancemos con la organización unida de Jehová",
+  4:"El mundo que nos rodea prueba que Dios existe",
+  5:"Ayuda práctica para las familias",
+  6:"Qué aprendemos del diluvio universal",
+  7:"Imitemos al “Padre de tiernas misericordias”",
+  8:"Vivamos para hacer la voluntad de Dios, no la nuestra",
+  9:"Escuchemos y pongamos en práctica la Palabra de Dios",
+  10:"Seamos honrados en todo",
+  11:"Imitemos a Jesús, y no seamos parte del mundo",
+  12:"A Dios le importa cómo vemos la autoridad",
+  13:"Cómo ve Dios el sexo y el matrimonio",
+  14:"Un pueblo limpio da gloria a Jehová",
+  15:"“Hagamos el bien a todos”",
+  16:"Fortalezcamos nuestra amistad con Dios",
+  17:"Demos gloria a Dios con todo lo que tenemos",
+  18:"Haga de Jehová su “fortaleza”",
+  19:"Cómo puede usted conocer su futuro",
+  20:"¿Ha llegado el tiempo para que Dios gobierne el mundo?",
+  21:"Valoremos nuestro lugar en el Reino de Dios",
+  22:"¿Aprovecha usted todas las ayudas espirituales que Jehová nos da?",
+  23:"La vida tiene propósito",
+  24:"¿Ha encontrado usted “una perla muy valiosa”?",
+  25:"Luchemos contra el espíritu del mundo",
+  26:"¿Le importamos a Dios?",
+  27:"Cómo iniciar bien el matrimonio",
+  28:"Muestre respeto y amor en su matrimonio",
+  29:"Las responsabilidades y las recompensas que tienen los padres",
+  30:"Cómo mejorar la comunicación en la familia",
+  31:"¿Estamos al tanto de nuestras necesidades espirituales?",
+  32:"Cómo enfrentarse a las inquietudes de la vida",
+  33:"¿Habrá algún día justicia para todos?",
+  34:"¿Tendrá usted la marca para sobrevivir?",
+  35:"¿Se puede vivir para siempre? ¿Lo logrará usted?",
+  36:"¿Es esta vida todo lo que podemos esperar?",
+  37:"¿Por qué andar en el camino de Dios?",
+  38:"¿Cómo puede usted sobrevivir al fin del mundo?",
+  39:"¿En qué sentido es Jesucristo el vencedor del mundo?",
+  40:"¿Qué sucederá en el futuro cercano?",
+  41:"“Estense quietos y vean cómo los salva Jehová”",
+  42:"¿Puede el amor vencer al odio?",
+  43:"Lo que Dios espera de nosotros siempre nos beneficia",
+  44:"¿Cómo le benefician a usted las enseñanzas de Jesús?",
+  45:"Sigamos el camino que lleva a la vida",
+  46:"Mantengamos nuestra confianza fuerte hasta el fin",
+  47:"“Tengan fe en las buenas noticias”",
+  48:"Cómo ser leales ante las pruebas",
+  49:"¿Viviremos algún día en una Tierra limpia?",
+  50:"Cómo tomar buenas decisiones",
+  51:"¿Está la verdad transformando su vida?",
+  52:"¿Quién es su Dios?",
+  53:"¿Piensa usted igual que Dios?",
+  54:"Tenga fe en Dios y sus promesas",
+  55:"¿Cómo puede ganarse una buena reputación ante Dios?",
+  56:"¿En qué líder podemos confiar?",
+  57:"Aguantemos la persecución",
+  58:"¿Quiénes son los verdaderos discípulos de Cristo?",
+  60:"¿Cuál es su propósito en la vida?",
+  61:"¿En las promesas de quién confía usted?",
+  62:"¿Dónde encontrará una esperanza segura?",
+  63:"¿Es posible encontrar la verdad?",
+  64:"¿Amamos los placeres en vez de a Dios?",
+  65:"¿Cómo podemos ser pacíficos en un mundo violento?",
+  66:"¿Será usted un buen trabajador en la cosecha?",
+  67:"Medite en la Palabra de Jehová y en su creación",
+  68:"“Sigan [...] perdonándose con generosidad”",
+  69:"¿Por qué es importante mostrar amor desinteresado?",
+  70:"¿Por qué se merece Dios toda nuestra confianza?",
+  71:"Ahora es el momento de estar despiertos",
+  72:"El amor identifica a la religión verdadera",
+  73:"Consigamos que nuestro corazón sea sabio",
+  74:"Jehová está pendiente de nosotros",
+  75:"Demuestre que apoya el gobierno de Dios",
+  76:"¿Pueden los principios bíblicos ayudarnos a afrontar los problemas de nuestro tiempo?",
+  77:"“Sean siempre hospitalarios”",
+  78:"Sirva a Jehová con alegría",
+  79:"¿A quién prefiere como amigo?",
+  80:"¿Confía usted en la ciencia o en la Biblia?",
+  81:"¿Quiénes están preparados para hacer discípulos?",
+  83:"¿Tienen que obedecer los cristianos los Diez Mandamientos?",
+  84:"¿Escapará usted de lo que le espera a este mundo?",
+  85:"Buenas nuevas en un mundo violento",
+  86:"Cómo lograr que Dios escuche nuestras oraciones",
+  87:"¿Qué relación tiene usted con Dios?",
+  88:"Por qué vivir de acuerdo con las normas de la Biblia",
+  89:"¡Venga a beber el agua de la verdad!",
+  90:"Esfuércese por conseguir la vida que realmente es vida",
+  91:"La presencia y la gobernación del Mesías",
+  92:"El papel de la religión en los asuntos del mundo",
+  93:"¿Cuándo se acabarán los desastres naturales?",
+  94:"La religión verdadera satisface las necesidades de la sociedad humana",
+  95:"¡No caiga en la trampa del ocultismo!",
+  96:"¿Cuál es el futuro de la religión?",
+  97:"Permanezcamos sin culpa en medio de una generación torcida",
+  98:"“La escena de este mundo está cambiando”",
+  99:"Por qué se puede confiar en la Biblia",
+  100:"Haga amistades que duren para siempre",
+  101:"Jehová, el “Gran Creador”",
+  102:"Prestémosle atención a “la palabra profética”",
+  103:"Cómo ser verdaderamente felices",
+  104:"Padres, ¿están construyendo con materiales resistentes al fuego?",
+  105:"Cómo obtener consuelo en toda tribulación",
+  106:"Dios dará su merecido a los que arruinan la Tierra",
+  107:"Eduquemos nuestra conciencia, y nos irá bien",
+  108:"Mire al futuro sin miedo",
+  109:"El Reino de Dios está cerca",
+  110:"La familia feliz es la que pone a Dios en primer lugar",
+  111:"La humanidad recuperará la salud por completo",
+  112:"Mostremos amor en un mundo egoísta",
+  113:"Joven, ¿cómo puedes ser feliz y tener éxito?",
+  114:"Aprecie las maravillas de la creación de Dios",
+  115:"Protéjase de las astutas trampas de Satanás",
+  116:"Sea sabio al elegir sus compañías",
+  117:"Cómo vencer el mal con el bien",
+  118:"Veamos a los jóvenes como los ve Jehová",
+  119:"Por qué es provechoso que los cristianos se mantengan separados del mundo",
+  120:"Razones para someterse hoy al gobierno de Dios",
+  121:"Una hermandad mundial sobrevivirá a la mayor calamidad de la historia",
+  124:"Razones para confiar en el origen divino de la Biblia",
+  125:"Por qué necesita la humanidad un rescate",
+  126:"¿Quién puede ser salvo?",
+  127:"¿Qué nos sucede cuando morimos?",
+  128:"¿Es el infierno realmente un lugar de tormento?",
+  129:"¿Enseña la Biblia que Dios es una trinidad?",
+  130:"La Tierra existirá para siempre",
+  131:"Pongámonos en contra del Diablo",
+  132:"La resurrección: una victoria sobre la muerte",
+  133:"¿Importa lo que creemos sobre el origen de los seres humanos?",
+  134:"¿Deben los cristianos observar el sábado?",
+  135:"La santidad de la vida y la sangre",
+  136:"¿Aprueba Dios las imágenes en la adoración?",
+  137:"¿De verdad tuvieron lugar los milagros de la Biblia?",
+  138:"Vivamos con buen juicio en un mundo perverso",
+  139:"Sabiduría piadosa en un mundo de orientación científica",
+  140:"¿Quién es Jesucristo en realidad?",
+  141:"¿Cuándo dejará de gemir la creación humana?",
+  142:"Por qué refugiarse en Jehová",
+  143:"Confiemos en el Dios de todo consuelo",
+  144:"Una congregación leal bajo la dirección de Cristo",
+  145:"¿Quién es como Jehová nuestro Dios?",
+  146:"Utilice la educación para alabar a Jehová",
+  147:"Confiemos en que Jehová tiene el poder para salvarnos",
+  148:"¿Ve usted la vida como la ve Dios?",
+  149:"¿Anda usted con Dios?",
+  150:"¿Está este mundo condenado a la destrucción?",
+  151:"Jehová es “una altura segura” para su pueblo",
+  152:"¿Cuándo y por qué vendrá el verdadero Armagedón?",
+  153:"Estemos muy pendientes del “impresionante día de Jehová”",
+  154:"El gobierno del hombre, pesado en la balanza",
+  155:"¿Ha llegado la hora del juicio de Babilonia?",
+  156:"¿Es el Día del Juicio un tiempo de temor, o de esperanza?",
+  157:"Cómo adornan los cristianos la enseñanza divina",
+  158:"Seamos valerosos y confiemos en Jehová",
+  159:"Cómo encontrar seguridad en un mundo peligroso",
+  160:"Protejamos nuestra identidad cristiana",
+  161:"¿Por qué sufrió y murió Jesús?",
+  162:"Liberados de un mundo de oscuridad",
+  163:"¿Por qué temer al Dios verdadero?",
+  164:"¿Sigue Dios ejerciendo la soberanía sobre la Tierra?",
+  165:"¿A qué valores concedemos más importancia?",
+  166:"¿Qué es la verdadera fe, y cómo se demuestra?",
+  167:"Actuemos con sabiduría en este mundo insensato",
+  168:"Cómo sentirse seguro en este mundo turbulento",
+  169:"¿Por qué debemos guiarnos por la Biblia?",
+  170:"¿Quién es el único que puede gobernar bien a la humanidad?",
+  171:"Usted puede disfrutar de la vida en paz ahora y para siempre",
+  172:"¿Qué posición tenemos ante Dios?",
+  173:"¿Le importa a Dios qué religión tengamos?",
+  174:"¿Quién será digno de entrar en el nuevo mundo de Dios?",
+  175:"¿Qué pruebas demuestran la autenticidad de la Biblia?",
+  176:"¿Cuándo tendremos verdadera paz y seguridad?",
+  177:"¿A quién podemos acudir en tiempos de angustia?",
+  178:"Andemos en el camino de la integridad",
+  179:"Rechace las fantasías mundanales; busque las realidades del Reino",
+  180:"¿Por qué debe ser real para nosotros la esperanza de la resurrección?",
+  181:"¿Faltará menos de lo que usted cree?",
+  182:"¿Qué está haciendo por nosotros el Reino de Dios?",
+  183:"Apartemos la mirada de lo que no sirve para nada",
+  184:"¿Es la muerte el final de todo?",
+  185:"¿Influye la verdad en su vida?",
+  186:"Unidos al feliz pueblo de Dios",
+  187:"¿Cómo es posible que un Dios de amor permita la maldad?",
+  188:"¿Ha puesto usted su confianza en Jehová?",
+  189:"Andar con Dios nos beneficia ahora y para siempre",
+  190:"Una familia unida y feliz para siempre",
+  191:"Cómo vencen al mundo la fe y el amor",
+  192:"¿Anda usted por el camino que lleva a la vida eterna?",
+  193:"Pronto se nos librará de la angustia mundial",
+  194:"Cómo nos beneficia la sabiduría divina"
+};
+
+/* ================= DATOS: números y títulos de canciones ================= */
+const SONGS = {
+  1:"Las cualidades principales de Jehová (Apocalipsis 4:11)",
+  2:"Tu nombre es Jehová (Salmo 83:18)",
+  3:"Tú me das fuerza, confianza y valor (Proverbios 14:26)",
+  4:"“Jehová es mi Pastor” (Salmo 23)",
+  5:"Las maravillosas obras de Dios (Salmo 139)",
+  6:"Los cielos proclaman la gloria de Dios (Salmo 19)",
+  7:"Jehová es mi fuerza y mi salvación (Isaías 12:2)",
+  8:"Jehová es mi Refugio (Salmo 91)",
+  9:"¡Jehová es nuestro Rey! (Salmo 97:1)",
+  10:"¡Alabemos a nuestro Dios, Jehová! (Salmo 145:12)",
+  11:"La creación alaba a Jehová (Salmo 19)",
+  12:"Jehová, nuestro gran Dios (Éxodo 34:6, 7)",
+  13:"Cristo es nuestro modelo (1 Pedro 2:21)",
+  14:"Honremos al nuevo Rey de la Tierra (Salmo 2:12)",
+  15:"Alabemos al Primogénito de Jehová (Hebreos 1:6)",
+  16:"Alabemos a Jehová por su Hijo, el Ungido (Apocalipsis 21:2)",
+  17:"“Quiero” (Lucas 5:13)",
+  18:"Gracias por el rescate (Lucas 22:20)",
+  19:"La Cena del Señor (Mateo 26:26-30)",
+  20:"Enviaste a Jesús, tu Hijo amado (1 Juan 4:9)",
+  21:"Busquemos primero el Reino (Mateo 6:33)",
+  22:"¡Que venga el Reino que Dios ha establecido! (Apocalipsis 11:15; 12:10)",
+  23:"Jehová ha empezado su gobierno (Apocalipsis 11:15)",
+  24:"Subamos a la montaña de Jehová (Isaías 2:2-4)",
+  25:"Una posesión especial (1 Pedro 2:9)",
+  26:"“Si lo haces por él, lo haces por mí” (Mateo 25:34-40)",
+  27:"La revelación de los hijos de Dios (Romanos 8:19)",
+  28:"Cómo hacernos amigos de Jehová (Salmo 15)",
+  29:"Hagamos honor a nuestro nombre (Isaías 43:10-12)",
+  30:"Mi Amigo, mi Padre, mi Dios (Hebreos 6:10)",
+  31:"Camina siempre con Jehová (Miqueas 6:8)",
+  32:"¡Ponte de parte de Dios! (Éxodo 32:26)",
+  33:"Echa sobre Dios tu carga (Salmo 55)",
+  34:"Caminaré en integridad (Salmo 26)",
+  35:"Asegurémonos de lo más importante (Filipenses 1:10)",
+  36:"Cuidemos nuestro corazón (Proverbios 4:23)",
+  37:"Serviré a Jehová con el corazón (Mateo 22:37)",
+  38:"Jehová te cuidará (1 Pedro 5:10)",
+  39:"Un buen nombre ante Dios (Eclesiastés 7:1)",
+  40:"¿A quién servimos? (Romanos 14:8)",
+  41:"Padre, escucha mi oración (Salmo 54)",
+  42:"La oración del siervo de Dios (Efesios 6:18)",
+  43:"Una oración para dar gracias a Dios (Salmo 95:2)",
+  44:"Una súplica ferviente (Salmo 4:1)",
+  45:"“La meditación de mi corazón” (Salmo 19:14)",
+  46:"Gracias, Jehová (1 Tesalonicenses 5:18)",
+  47:"Oremos a Dios todos los días (1 Tesalonicenses 5:17)",
+  48:"Caminemos diariamente con Jehová (Miqueas 6:8)",
+  49:"Alegremos el corazón de Jehová (Proverbios 27:11)",
+  50:"Mi oración de dedicación (Mateo 22:37)",
+  51:"Estamos dedicados a Dios (Mateo 16:24)",
+  52:"La dedicación cristiana (Hebreos 10:7, 9)",
+  53:"Hoy voy a salir a predicar (Jeremías 1:17)",
+  54:"“Este es el camino” (Isaías 30:20, 21)",
+  55:"¡No los temas! (Mateo 10:28)",
+  56:"Vive la verdad (Proverbios 3:1, 2)",
+  57:"Predicamos a toda clase de personas (1 Timoteo 2:4)",
+  58:"Voy a buscar a los amigos de la paz (Lucas 10:6)",
+  59:"Ven a alabar a Jehová (Salmo 146:2)",
+  60:"Hay vidas en juego (Ezequiel 3:17-19)",
+  61:"¡Avancen, Testigos! (Lucas 16:16)",
+  62:"La nueva canción (Salmo 98)",
+  63:"¡Soy testigo de Jehová! (Isaías 43:10-12)",
+  64:"Participemos con gozo en la cosecha (Mateo 13:1-23)",
+  65:"Lucha por progresar (Hebreos 6:1)",
+  66:"Proclamemos las buenas noticias (Apocalipsis 14:6, 7)",
+  67:"“Predica la palabra” (2 Timoteo 4:2)",
+  68:"Sembremos semillas del Reino (Mateo 13:4-8)",
+  69:"Prediquen las nuevas del Reino (2 Timoteo 4:5)",
+  70:"Busquemos a los merecedores (Mateo 10:11-15)",
+  71:"¡Somos los guerreros de Jehová! (Efesios 6:11-14)",
+  72:"Anunciaré la verdad del Reino (Hechos 20:20, 21)",
+  73:"Danos fuerzas y valor (Hechos 4:29)",
+  74:"Ven a cantar la gran canción del Reino (Salmo 98:1)",
+  75:"“¡Aquí estoy, envíame!” (Isaías 6:8)",
+  76:"Cuéntame lo que sientes (Hebreos 13:15)",
+  77:"Luz en un mundo oscuro (2 Corintios 4:6)",
+  78:"Enseñemos la Palabra de Dios (Hechos 18:11)",
+  79:"Que sigan firmes en la fe (Mateo 28:19, 20)",
+  80:"“Prueben y vean que Jehová es bueno” (Salmo 34:8)",
+  81:"La vida del precursor (Eclesiastés 11:6)",
+  82:"Hagamos que brille nuestra luz (Mateo 5:16)",
+  83:"“De casa en casa” (Hechos 20:20)",
+  84:"Servimos donde se nos necesite (Mateo 9:37, 38)",
+  85:"“Recíbanse con gusto unos a otros” (Romanos 15:7)",
+  86:"Necesitamos que Jehová nos enseñe (Isaías 50:4; 54:13)",
+  87:"Ven a recibir ánimo (Hebreos 10:24, 25)",
+  88:"Hazme conocer tus caminos (Salmo 25:4)",
+  89:"Jehová bendice al que escucha y obedece (Lucas 11:28)",
+  90:"Animémonos unos a otros (Hebreos 10:24, 25)",
+  91:"Una obra de amor (Salmo 127:1)",
+  92:"Un lugar que lleva tu nombre (1 Crónicas 29:16)",
+  93:"Bendice nuestras reuniones (Hebreos 10:24, 25)",
+  94:"Agradecidos por la Palabra de Dios (Filipenses 2:16)",
+  95:"La luz brilla más cada día (Proverbios 4:18)",
+  96:"El libro de Dios es un tesoro (Proverbios 2:1)",
+  97:"Nuestra vida depende de la Palabra de Dios (Mateo 4:4)",
+  98:"Las Escrituras están inspiradas por Dios (2 Timoteo 3:16, 17)",
+  99:"Miles de fieles hermanos (Apocalipsis 7:9, 10)",
+  100:"Seamos hospitalarios (Hechos 17:7)",
+  101:"Sirvamos a Dios en unidad (Efesios 4:3)",
+  102:"Ayudemos a los débiles (Hechos 20:35)",
+  103:"Nuestros pastores son un regalo de Dios (Efesios 4:8)",
+  104:"El espíritu santo es un regalo de Dios (Lucas 11:13)",
+  105:"“Dios es amor” (1 Juan 4:7, 8)",
+  106:"Cultivemos amor verdadero (1 Corintios 13:1-8)",
+  107:"Dios nos enseñó a amar (1 Juan 4:19)",
+  108:"El amor leal de Jehová (Isaías 55:1-3)",
+  109:"Amémonos de todo corazón (1 Pedro 1:22)",
+  110:"El gozo de Jehová (Nehemías 8:10)",
+  111:"Los motivos de nuestro gozo (Mateo 5:12)",
+  112:"Jehová, el Dios de la paz (Filipenses 4:9)",
+  113:"La paz del pueblo de Dios (Juan 14:27)",
+  114:"Demostremos paciencia (Santiago 5:8)",
+  115:"Gratitud por la paciencia de Dios (2 Pedro 3:15)",
+  116:"Seamos amables y bondadosos (Efesios 4:32)",
+  117:"Imitemos la bondad de Jehová (2 Crónicas 6:41)",
+  118:"“Danos más fe” (Lucas 17:5)",
+  119:"Necesitamos una fe fuerte (Hebreos 10:38, 39)",
+  120:"Seamos apacibles y humildes como Cristo (Mateo 11:28-30)",
+  121:"Necesitamos autodominio (Romanos 7:14-25)",
+  122:"¡Mantengámonos firmes, inmovibles! (1 Corintios 15:58)",
+  123:"Seamos leales y sumisos al orden teocrático (1 Corintios 15:58)",
+  124:"Siempre fieles y leales (Salmo 18:25)",
+  125:"Felices los misericordiosos (Mateo 5:7)",
+  126:"Siempre fuertes, fieles y firmes (1 Corintios 16:13)",
+  127:"La clase de persona que debo ser (2 Pedro 3:11)",
+  128:"Aguantemos hasta el fin (Mateo 24:13)",
+  129:"Servimos con aguante (Mateo 24:13)",
+  130:"Aprendamos a perdonar (Salmo 86:5)",
+  131:"“Lo que Dios ha unido” (Mateo 19:5, 6)",
+  132:"Ahora ya somos uno (Génesis 2:23, 24)",
+  133:"Sirvamos a Jehová en nuestra juventud (Eclesiastés 12:1)",
+  134:"Los hijos son un regalo de Dios (Salmo 127:3-5)",
+  135:"Jehová te pide: “Sé sabio, hijo mío” (Proverbios 27:11)",
+  136:"Que Jehová te bendiga (Rut 2:12)",
+  137:"Fieles, valiosas, amadas (Romanos 16:2)",
+  138:"Los cabellos blancos, una hermosa corona (Proverbios 16:31)",
+  139:"¿Te ves en el nuevo mundo? (Apocalipsis 21:1-5)",
+  140:"¡Vida sin fin, al fin! (Juan 3:16)",
+  141:"El maravilloso regalo de la vida (Salmo 36:9)",
+  142:"Aferrémonos a nuestra esperanza (Hebreos 6:18, 19)",
+  143:"¡Hay que seguir vigilantes! (Romanos 8:20-25)",
+  144:"No dejes de mirar allí (2 Corintios 4:18)",
+  145:"Dios prometió un Paraíso (Lucas 23:43)",
+  146:"“Estoy haciendo todo nuevo” (Apocalipsis 21:1-5)",
+  147:"Dios nos promete la vida eterna (Salmo 37:29)",
+  148:"Jehová es mi Roca de salvación (2 Samuel 22:1-8)",
+  149:"La canción de la victoria (Éxodo 15:1)",
+  150:"¡Jehová será tu Salvador! (Sofonías 2:3)",
+  151:"Jehová los llamará (Job 14:13-15)",
+  152:"Un lugar que te honrará (1 Reyes 8:27; 1 Crónicas 29:14)",
+  153:"Por ti seré valiente (2 Reyes 6:16)",
+  154:"Un amor sin final (1 Corintios 13:8)",
+  155:"Mi mayor felicidad (Salmo 16:11)",
+  156:"Si tienes fe (Salmo 27:13)",
+  157:"Solo paz (Salmo 29:11)",
+  158:"Danos paciencia (Habacuc 2:3)",
+  159:"Demos gloria a Jehová (Salmo 96:8)",
+  160:"¡Buenas noticias! (Lucas 2:10)",
+  161:"Hacer tu voluntad (Salmo 40:8)",
+  162:"Mi necesidad espiritual (Mateo 5:3)",
+  163:"Ya puedo ver (Mateo 13:16)"
+};
+
+function lookupByNumber(map, numeroStr){
+  const n = parseInt(numeroStr, 10);
+  if(!numeroStr || isNaN(n)) return {text:"—", found:true};
+  if(map[n]) return {text:map[n], found:true};
+  return {text:"No encontrado", found:false};
+}
+
+function escapeHtml(str){
+  return String(str == null ? "" : str).replace(/[&<>"']/g, c=>({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  }[c]));
+}
+
+const DIAS_SEMANA = ["DOMINGO","LUNES","MARTES","MIÉRCOLES","JUEVES","VIERNES","SÁBADO"];
+function formatDate(iso){
+  if(!iso) return "";
+  const parts = iso.split("-");
+  if(parts.length !== 3) return iso;
+  const [y,m,d] = parts;
+  const dateObj = new Date(Number(y), Number(m)-1, Number(d));
+  const diaNombre = DIAS_SEMANA[dateObj.getDay()];
+  return `${diaNombre} ${d}/${m}/${y}`;
+}
+
+/* ================= AUTOCOMPLETADO (guardado en el navegador) ================= */
+/* Campos con memoria de nombres: presidente, congregación, orador saliente,
+   congregación visitada, conductor Atalaya y lector. Se guarda en localStorage
+   cuando está disponible; si el navegador la bloquea (p. ej. vista previa en un
+   entorno restringido), se usa memoria temporal solo para esta sesión. */
+const AUTOCOMPLETE_STORAGE_KEY = "programaReunionPublica_autocompletado_v1";
+const AUTOCOMPLETE_FIELDS = ["presidente", "congregacion", "oradorSaliente", "congregacionVisitada", "conductorAtalaya", "lector"];
+let autocompleteStorageAvailable = true;
+
+function loadAutocompleteData(){
+  try{
+    const raw = window.localStorage.getItem(AUTOCOMPLETE_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const data = {};
+    AUTOCOMPLETE_FIELDS.forEach(k=>{ data[k] = Array.isArray(parsed[k]) ? parsed[k] : []; });
+    return data;
+  }catch(err){
+    autocompleteStorageAvailable = false;
+    const data = {};
+    AUTOCOMPLETE_FIELDS.forEach(k=>{ data[k] = []; });
+    return data;
+  }
+}
+
+let autocompleteData = loadAutocompleteData();
+
+function saveAutocompleteData(){
+  if(!autocompleteStorageAvailable) return;
+  try{
+    window.localStorage.setItem(AUTOCOMPLETE_STORAGE_KEY, JSON.stringify(autocompleteData));
+  }catch(err){
+    autocompleteStorageAvailable = false;
+  }
+}
+
+function updateDatalistOptions(key){
+  const dl = document.getElementById("dl-" + key);
+  if(!dl) return;
+  dl.innerHTML = "";
+  (autocompleteData[key] || []).forEach(v=>{
+    const opt = document.createElement("option");
+    opt.value = v;
+    dl.appendChild(opt);
+  });
+}
+
+function addToAutocomplete(key, value){
+  const v = (value || "").trim();
+  if(!v || !AUTOCOMPLETE_FIELDS.includes(key)) return;
+  const arr = autocompleteData[key] || (autocompleteData[key] = []);
+  const yaExiste = arr.some(existing => existing.toLowerCase() === v.toLowerCase());
+  if(!yaExiste){
+    arr.push(v);
+    arr.sort((a,b)=> a.localeCompare(b, "es"));
+    if(arr.length > 60) arr.shift();
+    saveAutocompleteData();
+    updateDatalistOptions(key);
+  }
+}
+
+function buildAutocompleteDatalists(){
+  const container = document.createElement("div");
+  container.style.display = "none";
+  AUTOCOMPLETE_FIELDS.forEach(key=>{
+    const dl = document.createElement("datalist");
+    dl.id = "dl-" + key;
+    container.appendChild(dl);
+  });
+  document.body.appendChild(container);
+  AUTOCOMPLETE_FIELDS.forEach(updateDatalistOptions);
+}
+
+
+const MAX_WEEKS = 5;
+let nextWeekId = 1;
+let nextExtraId = 1;
+
+function defaultWeekData(){
+  return {
+    fecha:"", presidente:"", cancionInicial:"", cancionInicialManual:"", oradorVisitante:"", congregacion:"",
+    discursoNumero:"", discursoManual:"",
+    hospitalidad:[false,false,false,false,false,false,false,false], // 0-5: Grupo 1-6, 6: "Todos", 7: "No aplica"
+    section2Visible:true, fechaSalida:"", oradorSaliente:"", congregacionVisitada:"",
+    cancionAtalaya:"", cancionAtalayaManual:"", conductorAtalaya:"",
+    lectorVisible:true, lectorAtalaya:"",
+    cancionFinalVisible:true, cancionFinal:"", cancionFinalManual:"",
+    extraBlocks:[] // {id, titulo, orador, numero, numeroManual, cancionFinal, cancionFinalManual}
+  };
+}
+
+function makeWeek(){
+  return Object.assign({id: nextWeekId++}, defaultWeekData());
+}
+
+function normalizeExtraBlock(raw){
+  const base = {titulo:"Discurso Final", orador:"", numero:"", numeroManual:"", cancionFinal:"", cancionFinalManual:""};
+  const block = Object.assign({}, base, raw || {});
+  block.id = (raw && typeof raw.id === "number") ? raw.id : (nextExtraId++);
+  if(!block.titulo) block.titulo = "Discurso Final";
+  return block;
+}
+
+function normalizeWeek(raw){
+  const week = Object.assign({}, defaultWeekData(), raw || {});
+  week.id = (raw && typeof raw.id === "number") ? raw.id : (nextWeekId++);
+  if(!Array.isArray(week.hospitalidad)){
+    week.hospitalidad = [false,false,false,false,false,false,false,false];
+  } else {
+    const arr = week.hospitalidad.map(Boolean);
+    while(arr.length < 8) arr.push(false);
+    week.hospitalidad = arr.slice(0,8);
+  }
+  week.extraBlocks = Array.isArray(week.extraBlocks) ? week.extraBlocks.map(normalizeExtraBlock) : [];
+  return week;
+}
+
+function recalcIdCounters(){
+  let maxWeek = 0, maxExtra = 0;
+  state.weeks.forEach(w=>{
+    if(typeof w.id === "number" && w.id > maxWeek) maxWeek = w.id;
+    w.extraBlocks.forEach(b=>{
+      if(typeof b.id === "number" && b.id > maxExtra) maxExtra = b.id;
+    });
+  });
+  nextWeekId = maxWeek + 1;
+  nextExtraId = maxExtra + 1;
+}
+
+/* ================= GUARDADO AUTOMÁTICO EN EL NAVEGADOR ================= */
+const APP_STATE_STORAGE_KEY = "programaReunionPublica_estadoApp_v1";
+let appAutosaveAvailable = true;
+let appAutosaveTimer = null;
+
+function loadSavedAppState(){
+  try{
+    const raw = window.localStorage.getItem(APP_STATE_STORAGE_KEY);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    if(!parsed || !Array.isArray(parsed.weeks) || parsed.weeks.length === 0) return null;
+    return parsed;
+  }catch(err){
+    appAutosaveAvailable = false;
+    return null;
+  }
+}
+
+function saveAppStateNow(){
+  if(!appAutosaveAvailable) return;
+  try{
+    window.localStorage.setItem(APP_STATE_STORAGE_KEY, JSON.stringify(state));
+  }catch(err){
+    appAutosaveAvailable = false;
+  }
+}
+
+function scheduleAutosave(){
+  if(!appAutosaveAvailable) return;
+  clearTimeout(appAutosaveTimer);
+  appAutosaveTimer = setTimeout(saveAppStateNow, 400);
+}
+
+const savedAppState = loadSavedAppState();
+let state;
+if(savedAppState){
+  state = {
+    weeks: savedAppState.weeks.slice(0, MAX_WEEKS).map(normalizeWeek),
+    theme: (savedAppState.theme === "dark") ? "dark" : "light",
+    appTitle: (typeof savedAppState.appTitle === "string" && savedAppState.appTitle.trim()) ? savedAppState.appTitle.trim() : "PAUL HARRIS"
+  };
+  recalcIdCounters();
+} else {
+  state = {
+    weeks:[ makeWeek() ],
+    theme:"light",
+    appTitle:"PAUL HARRIS"
+  };
+}
+
+const undoStack = [];
+const redoStack = [];
+const MAX_HISTORY = 5;
+
+function cloneState(s){ return JSON.parse(JSON.stringify(s)); }
+
+function pushHistory(){
+  undoStack.push(cloneState(state));
+  if(undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack.length = 0;
+  updateHistoryButtons();
+}
+
+function updateHistoryButtons(){
+  document.getElementById("undoBtn").disabled = undoStack.length === 0;
+  document.getElementById("redoBtn").disabled = redoStack.length === 0;
+}
+
+function undo(){
+  if(undoStack.length === 0) return;
+  redoStack.push(cloneState(state));
+  if(redoStack.length > MAX_HISTORY) redoStack.shift();
+  state = undoStack.pop();
+  render();
+}
+
+function redo(){
+  if(redoStack.length === 0) return;
+  undoStack.push(cloneState(state));
+  if(undoStack.length > MAX_HISTORY) undoStack.shift();
+  state = redoStack.pop();
+  render();
+}
+
+/* ================= CONSTRUCTORES DE CAMPOS ================= */
+function makeTextField(labelText, value, onInput, placeholder, extraClass, historyKey){
+  const label = document.createElement("label");
+  if(extraClass) label.className = extraClass;
+  label.appendChild(document.createTextNode(labelText));
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value || "";
+  if(placeholder) input.placeholder = placeholder;
+  if(historyKey){
+    input.setAttribute("list", "dl-" + historyKey);
+    input.setAttribute("autocomplete", "on");
+  }
+  input.addEventListener("focus", ()=> pushHistory());
+  input.addEventListener("input", ()=>{ onInput(input.value); scheduleAutosave(); });
+  if(historyKey){
+    input.addEventListener("blur", ()=> addToAutocomplete(historyKey, input.value));
+  }
+  label.appendChild(input);
+  return {label, input};
+}
+
+function makeDateField(labelText, value, onInput){
+  const label = document.createElement("label");
+  label.className = "fecha-inline";
+  label.appendChild(document.createTextNode(labelText));
+  const input = document.createElement("input");
+  input.type = "date";
+  input.value = value || "";
+  input.addEventListener("focus", ()=> pushHistory());
+  input.addEventListener("input", ()=>{ onInput(input.value); scheduleAutosave(); });
+  label.appendChild(input);
+  return {label, input};
+}
+
+function makeNumberLookupField(labelText, value, map, onInput, opts){
+  opts = opts || {};
+  const label = document.createElement("label");
+  const classes = [];
+  if(opts.extraClass) classes.push(opts.extraClass);
+  if(opts.spanFull !== false) classes.push("titulo-field");
+  label.className = classes.join(" ");
+  label.appendChild(document.createTextNode(labelText));
+  const row = document.createElement("div");
+  row.className = "titulo-row";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.inputMode = "numeric";
+  input.maxLength = 3;
+  input.className = "numero-input";
+  input.placeholder = "N.º";
+  input.value = value || "";
+  const displayWrap = document.createElement("div");
+  displayWrap.className = "titulo-display-wrap";
+  function refreshDisplay(){
+    displayWrap.innerHTML = "";
+    if(input.value.trim() === "0" && opts.manualGetter){
+      const manualInput = document.createElement("input");
+      manualInput.type = "text";
+      manualInput.className = "titulo-display-manual";
+      manualInput.placeholder = "Escribe el título manualmente";
+      manualInput.value = opts.manualGetter() || "";
+      manualInput.addEventListener("focus", ()=> pushHistory());
+      manualInput.addEventListener("input", ()=>{ if(opts.manualSetter) opts.manualSetter(manualInput.value); scheduleAutosave(); });
+      displayWrap.appendChild(manualInput);
+    } else {
+      const div = document.createElement("div");
+      const r = lookupByNumber(map, input.value);
+      div.textContent = r.text;
+      div.className = "titulo-display" + (r.found ? "" : " not-found");
+      displayWrap.appendChild(div);
+    }
+  }
+  refreshDisplay();
+  input.addEventListener("focus", ()=> pushHistory());
+  input.addEventListener("input", ()=>{
+    onInput(input.value);
+    refreshDisplay();
+    scheduleAutosave();
+  });
+  row.appendChild(input);
+  row.appendChild(displayWrap);
+  label.appendChild(row);
+  return {label, input};
+}
+
+function makeDeletableTextField(labelText, value, onInput, onDelete, historyKey){
+  const label = document.createElement("label");
+  label.appendChild(document.createTextNode(labelText));
+  const wrap = document.createElement("div");
+  wrap.className = "field-with-btn";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value || "";
+  if(historyKey){
+    input.setAttribute("list", "dl-" + historyKey);
+    input.setAttribute("autocomplete", "on");
+  }
+  input.addEventListener("focus", ()=> pushHistory());
+  input.addEventListener("input", ()=>{ onInput(input.value); scheduleAutosave(); });
+  if(historyKey){
+    input.addEventListener("blur", ()=> addToAutocomplete(historyKey, input.value));
+  }
+  const delBtn = document.createElement("button");
+  delBtn.className = "delete-btn";
+  delBtn.type = "button";
+  delBtn.title = "Eliminar campo";
+  delBtn.textContent = "✕";
+  delBtn.addEventListener("click", ()=>{ pushHistory(); onDelete(); });
+  wrap.appendChild(input);
+  wrap.appendChild(delBtn);
+  label.appendChild(wrap);
+  return {label, input};
+}
+
+function makeDeletableNumberLookupField(labelText, value, map, onInput, onDelete, opts){
+  opts = opts || {};
+  const label = document.createElement("label");
+  label.className = "with-delete";
+  label.appendChild(document.createTextNode(labelText));
+  const wrap = document.createElement("div");
+  wrap.className = "field-with-btn";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.inputMode = "numeric";
+  input.maxLength = 3;
+  input.className = "numero-input";
+  input.placeholder = "N.º";
+  input.value = value || "";
+  const displayWrap = document.createElement("div");
+  displayWrap.className = "titulo-display-wrap";
+  function refreshDisplay(){
+    displayWrap.innerHTML = "";
+    if(input.value.trim() === "0" && opts.manualGetter){
+      const manualInput = document.createElement("input");
+      manualInput.type = "text";
+      manualInput.className = "titulo-display-manual";
+      manualInput.placeholder = "Escribe el título manualmente";
+      manualInput.value = opts.manualGetter() || "";
+      manualInput.addEventListener("focus", ()=> pushHistory());
+      manualInput.addEventListener("input", ()=>{ if(opts.manualSetter) opts.manualSetter(manualInput.value); scheduleAutosave(); });
+      displayWrap.appendChild(manualInput);
+    } else {
+      const div = document.createElement("div");
+      const r = lookupByNumber(map, input.value);
+      div.textContent = r.text;
+      div.className = "titulo-display" + (r.found ? "" : " not-found");
+      displayWrap.appendChild(div);
+    }
+  }
+  refreshDisplay();
+  input.addEventListener("focus", ()=> pushHistory());
+  input.addEventListener("input", ()=>{
+    onInput(input.value);
+    refreshDisplay();
+    scheduleAutosave();
+  });
+  const delBtn = document.createElement("button");
+  delBtn.className = "delete-btn";
+  delBtn.type = "button";
+  delBtn.title = "Eliminar campo";
+  delBtn.textContent = "✕";
+  delBtn.addEventListener("click", ()=>{ pushHistory(); onDelete(); });
+  wrap.appendChild(input);
+  wrap.appendChild(displayWrap);
+  wrap.appendChild(delBtn);
+  label.appendChild(wrap);
+  return {label, input};
+}
+
+/* ================= CONSTRUCCIÓN DE UNA SEMANA COMPLETA ================= */
+function buildExtraBlockEl(block, week){
+  const section = document.createElement("section");
+  section.className = "box brown-box extra-block";
+
+  const header = document.createElement("div");
+  header.className = "section-header";
+  const h2 = document.createElement("h2");
+  h2.textContent = block.titulo;
+  h2.contentEditable = "true";
+  h2.spellcheck = false;
+  h2.addEventListener("focus", ()=> pushHistory());
+  h2.addEventListener("blur", ()=>{
+    const nuevo = h2.textContent.trim() || "Discurso Final";
+    block.titulo = nuevo;
+    h2.textContent = nuevo;
+    scheduleAutosave();
+  });
+  h2.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter"){ e.preventDefault(); h2.blur(); }
+  });
+
+  const delBtn = document.createElement("button");
+  delBtn.className = "delete-btn";
+  delBtn.type = "button";
+  delBtn.title = "Eliminar este discurso adicional";
+  delBtn.textContent = "✕";
+  delBtn.addEventListener("click", ()=>{
+    pushHistory();
+    week.extraBlocks = week.extraBlocks.filter(b=>b.id !== block.id);
+    render();
+  });
+  header.appendChild(h2);
+  header.appendChild(delBtn);
+  section.appendChild(header);
+
+  const grid1 = document.createElement("div");
+  grid1.className = "field-grid two-col";
+  const oradorField = makeTextField("Orador", block.orador, v=>{ block.orador = v; });
+  const tituloField = makeNumberLookupField("Título discurso", block.numero, DISCURSOS, v=>{ block.numero = v; }, {spanFull:true, manualGetter:()=>block.numeroManual, manualSetter:v=>{ block.numeroManual = v; }});
+  grid1.appendChild(oradorField.label);
+  grid1.appendChild(tituloField.label);
+  section.appendChild(grid1);
+
+  const grid2 = document.createElement("div");
+  grid2.className = "field-grid";
+  const cancionField = makeNumberLookupField("Canción final", block.cancionFinal, SONGS, v=>{ block.cancionFinal = v; }, {spanFull:true, manualGetter:()=>block.cancionFinalManual, manualSetter:v=>{ block.cancionFinalManual = v; }});
+  grid2.appendChild(cancionField.label);
+  section.appendChild(grid2);
+
+  return section;
+}
+
+function buildWeekEl(week, idx){
+  const wrapper = document.createElement("div");
+  wrapper.className = "week-wrapper";
+  wrapper.dataset.weekId = week.id;
+
+  /* ---- BARRA DE SEMANA: contador, mover y eliminar ---- */
+  {
+    const weekBar = document.createElement("div");
+    weekBar.className = "week-topbar";
+    const weekLabel = document.createElement("span");
+    weekLabel.className = "week-topbar-label";
+    weekLabel.textContent = "Programa " + (idx + 1) + " de " + MAX_WEEKS;
+    weekBar.appendChild(weekLabel);
+
+    const controls = document.createElement("div");
+    controls.className = "week-topbar-controls";
+
+    const moveUpBtn = document.createElement("button");
+    moveUpBtn.type = "button";
+    moveUpBtn.className = "tool-btn week-move-btn";
+    moveUpBtn.title = "Mover este programa hacia arriba";
+    moveUpBtn.textContent = "↑";
+    moveUpBtn.disabled = (idx === 0);
+    moveUpBtn.addEventListener("click", ()=>{
+      if(idx === 0) return;
+      pushHistory();
+      const arr = state.weeks;
+      [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]];
+      render();
+    });
+
+    const moveDownBtn = document.createElement("button");
+    moveDownBtn.type = "button";
+    moveDownBtn.className = "tool-btn week-move-btn";
+    moveDownBtn.title = "Mover este programa hacia abajo";
+    moveDownBtn.textContent = "↓";
+    moveDownBtn.disabled = (idx === state.weeks.length - 1);
+    moveDownBtn.addEventListener("click", ()=>{
+      if(idx === state.weeks.length - 1) return;
+      pushHistory();
+      const arr = state.weeks;
+      [arr[idx], arr[idx+1]] = [arr[idx+1], arr[idx]];
+      render();
+    });
+
+    controls.appendChild(moveUpBtn);
+    controls.appendChild(moveDownBtn);
+
+    if(idx > 0){
+      const deleteWeekBtn = document.createElement("button");
+      deleteWeekBtn.type = "button";
+      deleteWeekBtn.className = "delete-btn delete-week-btn";
+      deleteWeekBtn.title = "Eliminar todo este programa";
+      deleteWeekBtn.innerHTML = "✕";
+      deleteWeekBtn.addEventListener("click", ()=>{
+        const ok = confirm("¿Eliminar todo este programa completo? Podrás usar \"Deshacer\" si te arrepientes.");
+        if(!ok) return;
+        pushHistory();
+        state.weeks = state.weeks.filter(w=>w.id !== week.id);
+        render();
+      });
+      controls.appendChild(deleteWeekBtn);
+    }
+
+    weekBar.appendChild(controls);
+    wrapper.appendChild(weekBar);
+  }
+
+  /* ---- SECCIÓN 1: DISCURSO PÚBLICO ---- */
+  const s1 = document.createElement("section");
+  s1.className = "box gray-box";
+
+  const header1 = document.createElement("div");
+  header1.className = "section-header";
+  const h1 = document.createElement("h2");
+  h1.textContent = "DISCURSO PÚBLICO";
+  const fechaField = makeDateField("Fecha", week.fecha, v=>{ week.fecha = v; });
+  header1.appendChild(h1);
+  header1.appendChild(fechaField.label);
+  s1.appendChild(header1);
+
+  const rowPresCancion = document.createElement("div");
+  rowPresCancion.className = "field-grid-presidente";
+  const presidenteField = makeTextField("Presidente", week.presidente, v=>{ week.presidente = v; }, "Nombre", null, "presidente");
+  const cancionInicialField = makeNumberLookupField("Canción inicial", week.cancionInicial, SONGS, v=>{ week.cancionInicial = v; }, {spanFull:false, extraClass:"cancion-field", manualGetter:()=>week.cancionInicialManual, manualSetter:v=>{ week.cancionInicialManual = v; }});
+  rowPresCancion.appendChild(presidenteField.label);
+  rowPresCancion.appendChild(cancionInicialField.label);
+  s1.appendChild(rowPresCancion);
+
+  const rowOradorCong = document.createElement("div");
+  rowOradorCong.className = "field-grid";
+  const oradorVisitanteField = makeTextField("Orador visitante", week.oradorVisitante, v=>{ week.oradorVisitante = v; }, "Nombre del orador");
+  const congregacionField = makeTextField("Congregación", week.congregacion, v=>{ week.congregacion = v; }, "Congregación visitante", null, "congregacion");
+  rowOradorCong.appendChild(oradorVisitanteField.label);
+  rowOradorCong.appendChild(congregacionField.label);
+  s1.appendChild(rowOradorCong);
+
+  const rowTitulo = document.createElement("div");
+  rowTitulo.className = "field-grid";
+  const discursoField = makeNumberLookupField("Título del discurso", week.discursoNumero, DISCURSOS, v=>{ week.discursoNumero = v; }, {spanFull:true, manualGetter:()=>week.discursoManual, manualSetter:v=>{ week.discursoManual = v; }});
+  rowTitulo.appendChild(discursoField.label);
+  s1.appendChild(rowTitulo);
+
+  const hospWrap = document.createElement("div");
+  hospWrap.className = "hospitalidad";
+  const hospLabel = document.createElement("span");
+  hospLabel.className = "hosp-label";
+  hospLabel.textContent = "Hospitalidad — grupo de servicio";
+  const hospRow = document.createElement("div");
+  hospRow.className = "chip-row";
+  for(let i=0;i<8;i++){
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip" + (week.hospitalidad[i] ? " active" : "") + (i === 7 ? " chip-noaplica" : "");
+    chip.textContent = (i < 6) ? ("Grupo " + (i+1)) : (i === 6 ? "Todos" : "No aplica");
+    chip.addEventListener("click", ()=>{
+      pushHistory();
+      const yaActivo = week.hospitalidad[i];
+      for(let k=0;k<8;k++){ week.hospitalidad[k] = false; }
+      week.hospitalidad[i] = !yaActivo;
+      render();
+    });
+    hospRow.appendChild(chip);
+  }
+  hospWrap.appendChild(hospLabel);
+  hospWrap.appendChild(hospRow);
+  s1.appendChild(hospWrap);
+
+  wrapper.appendChild(s1);
+
+  /* ---- SECCIÓN 2: ORADOR LOCAL QUE SALE ---- */
+  if(week.section2Visible){
+    const s2 = document.createElement("section");
+    s2.className = "box brown-box";
+    const header2 = document.createElement("div");
+    header2.className = "section-header";
+    const h2t = document.createElement("h2");
+    h2t.textContent = "ORADOR LOCAL QUE SALE";
+    const fechaSalidaField = makeDateField("Fecha", week.fechaSalida, v=>{ week.fechaSalida = v; });
+    const delSection2Btn = document.createElement("button");
+    delSection2Btn.className = "delete-btn";
+    delSection2Btn.type = "button";
+    delSection2Btn.title = "Eliminar esta parte";
+    delSection2Btn.textContent = "✕";
+    delSection2Btn.addEventListener("click", ()=>{
+      pushHistory();
+      week.section2Visible = false;
+      render();
+    });
+    header2.appendChild(h2t);
+    header2.appendChild(fechaSalidaField.label);
+    header2.appendChild(delSection2Btn);
+    s2.appendChild(header2);
+
+    const grid2 = document.createElement("div");
+    grid2.className = "field-grid";
+    const oradorSalienteField = makeTextField("Orador saliente", week.oradorSaliente, v=>{ week.oradorSaliente = v; }, null, null, "oradorSaliente");
+    const congVisitadaField = makeTextField("Congregación visitada", week.congregacionVisitada, v=>{ week.congregacionVisitada = v; }, null, null, "congregacionVisitada");
+    grid2.appendChild(oradorSalienteField.label);
+    grid2.appendChild(congVisitadaField.label);
+    s2.appendChild(grid2);
+
+    wrapper.appendChild(s2);
+  }
+
+  /* ---- SECCIÓN 3: ESTUDIO DE LA ATALAYA ---- */
+  const s3 = document.createElement("section");
+  s3.className = "box atalaya-box";
+  const h3 = document.createElement("h2");
+  h3.textContent = "ESTUDIO DE LA ATALAYA";
+  s3.appendChild(h3);
+
+  const grid3 = document.createElement("div");
+  grid3.className = "field-grid";
+
+  const cancionField = makeNumberLookupField("Canción", week.cancionAtalaya, SONGS, v=>{ week.cancionAtalaya = v; }, {spanFull:true, extraClass:"cancion-field", manualGetter:()=>week.cancionAtalayaManual, manualSetter:v=>{ week.cancionAtalayaManual = v; }});
+  grid3.appendChild(cancionField.label);
+
+  const conductorField = makeTextField("Conductor", week.conductorAtalaya, v=>{ week.conductorAtalaya = v; }, null, null, "conductorAtalaya");
+  grid3.appendChild(conductorField.label);
+
+  if(week.lectorVisible){
+    const lectorField = makeDeletableTextField("Lector", week.lectorAtalaya, v=>{ week.lectorAtalaya = v; }, ()=>{ week.lectorVisible = false; render(); }, "lector");
+    grid3.appendChild(lectorField.label);
+  }
+
+  if(week.cancionFinalVisible){
+    const cancionFinalField = makeDeletableNumberLookupField("Canción final", week.cancionFinal, SONGS, v=>{ week.cancionFinal = v; }, ()=>{ week.cancionFinalVisible = false; render(); }, {manualGetter:()=>week.cancionFinalManual, manualSetter:v=>{ week.cancionFinalManual = v; }});
+    grid3.appendChild(cancionFinalField.label);
+  }
+
+  s3.appendChild(grid3);
+  wrapper.appendChild(s3);
+
+  /* ---- DISCURSOS ADICIONALES (Discurso Final) ---- */
+  week.extraBlocks.forEach(block=>{
+    wrapper.appendChild(buildExtraBlockEl(block, week));
+  });
+
+  /* ---- BOTONES DE ACCIÓN DE ESTA SEMANA ---- */
+  const actions = document.createElement("div");
+  actions.className = "week-actions";
+
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "add-btn";
+  const addLabel = document.createElement("span");
+  addLabel.className = "btn-label";
+  addLabel.textContent = "＋Agregar";
+  addBtn.appendChild(addLabel);
+  addBtn.addEventListener("click", ()=>{
+    pushHistory();
+    week.extraBlocks.push({id:nextExtraId++, titulo:"Discurso Final", orador:"", numero:"", numeroManual:"", cancionFinal:"", cancionFinalManual:""});
+    render();
+  });
+
+  const newWeekBtn = document.createElement("button");
+  newWeekBtn.type = "button";
+  newWeekBtn.className = "add-btn semana-btn";
+  const newWeekLabel = document.createElement("span");
+  newWeekLabel.className = "btn-label";
+  newWeekLabel.textContent = "＋Nueva semana";
+  newWeekBtn.appendChild(newWeekLabel);
+  if(state.weeks.length >= MAX_WEEKS){
+    newWeekBtn.disabled = true;
+  }
+  newWeekBtn.addEventListener("click", ()=>{
+    if(state.weeks.length >= MAX_WEEKS) return;
+    pushHistory();
+    state.weeks.splice(idx+1, 0, makeWeek());
+    render();
+  });
+
+  actions.appendChild(addBtn);
+  actions.appendChild(newWeekBtn);
+  wrapper.appendChild(actions);
+
+  return wrapper;
+}
+
+/* ================= RESUMEN DE IMPRESIÓN ================= */
+function makeInfoLine(pairs){
+  // pairs: array de [etiqueta, valor] -> se muestran en una sola línea separados por " · "
+  const line = document.createElement("div");
+  line.className = "print-info-line";
+  const parts = pairs
+    .filter(p => p[1] !== undefined && p[1] !== null && p[1] !== "")
+    .map(p => `<span class="print-info-label">${escapeHtml(p[0])}:</span> ${escapeHtml(p[1])}`);
+  if(parts.length === 0) return null;
+  line.innerHTML = parts.join(" &nbsp;·&nbsp; ");
+  return line;
+}
+
+function resolveDiscursoDisplay(numeroStr, manualStr){
+  const n = (numeroStr || "").trim();
+  if(n === "0"){
+    return (manualStr && manualStr.trim()) ? manualStr.trim() : "(sin título)";
+  }
+  if(!n) return "—";
+  const r = lookupByNumber(DISCURSOS, n);
+  if(r.found) return n + ". " + r.text;
+  return r.text;
+}
+
+/* Igual que resolveDiscursoDisplay, pero devuelve número y título por
+   separado — se usa solo para publicar en el sitio, en la impresión no
+   hace falta. */
+function resolveCancionParts(numeroStr, manualStr){
+  const n = (numeroStr || "").trim();
+  if(!n) return null;
+  const r = lookupByNumber(SONGS, n);
+  const titulo = r.found ? r.text : (manualStr && manualStr.trim() ? manualStr.trim() : r.text);
+  return { numero: n, titulo };
+}
+
+function nombreGrupoHospitalidad(idx){
+  if(idx < 6) return "Grupo " + (idx+1);
+  if(idx === 6) return "Todos";
+  return "No aplica";
+}
+
+function collectEmptyFieldsWarnings(){
+  const issues = [];
+  state.weeks.forEach((week, idx)=>{
+    const faltantes = [];
+    if(!week.fecha) faltantes.push("Fecha");
+    if(!week.presidente) faltantes.push("Presidente");
+    const numeroDiscurso = (week.discursoNumero || "").trim();
+    const tituloVacio = (numeroDiscurso === "0") ? !(week.discursoManual || "").trim() : !numeroDiscurso;
+    if(tituloVacio) faltantes.push("Título del discurso");
+    if(!week.oradorVisitante) faltantes.push("Orador visitante");
+    if(!week.congregacion) faltantes.push("Congregación");
+    if(!week.conductorAtalaya) faltantes.push("Conductor (Atalaya)");
+    if(faltantes.length){
+      const etiquetaFecha = week.fecha ? (" (" + formatDate(week.fecha) + ")") : "";
+      issues.push("Programa " + (idx+1) + etiquetaFecha + ": falta " + faltantes.join(", "));
+    }
+  });
+  return issues;
+}
+
+function renderPrintSummary(){
+  const el = document.getElementById("printSummary");
+  el.innerHTML = "";
+
+  const frame = document.createElement("div");
+  frame.className = "print-frame";
+
+  const title = document.createElement("div");
+  title.className = "print-frame-title";
+  title.textContent = "PROGRAMA REUNIÓN PÚBLICA " + (state.appTitle || "PAUL HARRIS");
+  frame.appendChild(title);
+
+  state.weeks.forEach((week, i)=>{
+    const row = document.createElement("div");
+    row.className = "print-row";
+
+    const linea1 = document.createElement("div");
+    linea1.className = "print-line1";
+    const fechaSpan = document.createElement("span");
+    fechaSpan.className = "print-fecha-val";
+    fechaSpan.textContent = week.fecha ? formatDate(week.fecha) : "(sin fecha)";
+    linea1.appendChild(fechaSpan);
+    const gruposActivos = week.hospitalidad
+      .map((activo, idx2)=> activo ? nombreGrupoHospitalidad(idx2) : null)
+      .filter(Boolean)
+      .join(", ");
+    if(gruposActivos){
+      const hospSpan = document.createElement("span");
+      hospSpan.className = "print-hosp-val";
+      hospSpan.innerHTML = `<span class="print-info-label">Hospitalidad:</span> ${escapeHtml(gruposActivos)}`;
+      linea1.appendChild(hospSpan);
+    }
+    row.appendChild(linea1);
+
+    const tituloTexto = resolveDiscursoDisplay(week.discursoNumero, week.discursoManual);
+    const linea2 = document.createElement("div");
+    linea2.className = "print-line2";
+    const items2 = [];
+    if(week.presidente){
+      items2.push(`<span><span class="print-info-label">Presidente:</span> ${escapeHtml(week.presidente)}</span>`);
+    }
+    items2.push(`<span class="print-titulo-item"><span class="print-info-label">Título del discurso:</span> ${escapeHtml(tituloTexto)}</span>`);
+    if(week.oradorVisitante){
+      items2.push(`<span><span class="print-info-label">Orador:</span> ${escapeHtml(week.oradorVisitante)}</span>`);
+    }
+    if(week.congregacion){
+      items2.push(`<span><span class="print-info-label">Congregación:</span> ${escapeHtml(week.congregacion)}</span>`);
+    }
+    linea2.innerHTML = items2.join("");
+    row.appendChild(linea2);
+
+    if(week.section2Visible && (week.oradorSaliente || week.congregacionVisitada || week.fechaSalida)){
+      const salidaTitle = document.createElement("div");
+      salidaTitle.className = "print-subhead";
+      salidaTitle.textContent = "Orador local que sale";
+      row.appendChild(salidaTitle);
+      const lineaSalida = makeInfoLine([
+        ["Fecha", week.fechaSalida ? formatDate(week.fechaSalida) : ""],
+        ["Orador", week.oradorSaliente],
+        ["Congregación visitada", week.congregacionVisitada],
+      ]);
+      if(lineaSalida) row.appendChild(lineaSalida);
+    }
+
+    const atalayaTitle = document.createElement("div");
+    atalayaTitle.className = "print-subhead";
+    atalayaTitle.textContent = "Estudio de la Atalaya";
+    row.appendChild(atalayaTitle);
+
+    const lineaAtalaya = makeInfoLine([
+      ["Conductor", week.conductorAtalaya],
+      ["Lector", week.lectorVisible ? week.lectorAtalaya : ""],
+    ]);
+    if(lineaAtalaya) row.appendChild(lineaAtalaya);
+
+    week.extraBlocks.forEach(block=>{
+      const extraTitle = document.createElement("div");
+      extraTitle.className = "print-subhead";
+      extraTitle.textContent = block.titulo || "Discurso Final";
+      row.appendChild(extraTitle);
+
+      const tituloExtraTexto = resolveDiscursoDisplay(block.numero, block.numeroManual);
+      const lineaExtra1 = makeInfoLine([
+        ["Orador", block.orador],
+        ["Título discurso", (block.numero || block.numeroManual) ? tituloExtraTexto : ""],
+      ]);
+      if(lineaExtra1) row.appendChild(lineaExtra1);
+    });
+
+    frame.appendChild(row);
+
+    if(i < state.weeks.length - 1){
+      const sep = document.createElement("div");
+      sep.className = "print-separator";
+      const pill1 = document.createElement("span");
+      pill1.className = "sep-pill";
+      const pill2 = document.createElement("span");
+      pill2.className = "sep-pill";
+      sep.appendChild(pill1);
+      sep.appendChild(pill2);
+      frame.appendChild(sep);
+    }
+  });
+
+  el.appendChild(frame);
+}
+
+/* ================= RENDER PRINCIPAL ================= */
+function render(){
+  const container = document.getElementById("weeksContainer");
+  container.innerHTML = "";
+  state.weeks.forEach((week, idx)=>{
+    container.appendChild(buildWeekEl(week, idx));
+  });
+
+  document.body.setAttribute("data-theme", state.theme);
+  document.getElementById("themeBtn").textContent = state.theme === "dark" ? "☀️ Claro" : "🌙 Oscuro";
+
+  const appTitleEl = document.getElementById("appTitleEditable");
+  if(appTitleEl && document.activeElement !== appTitleEl){
+    appTitleEl.textContent = state.appTitle;
+  }
+
+  renderPrintSummary();
+  updateHistoryButtons();
+  scheduleAutosave();
+}
+
+/* ================= TEMA / DESHACER / REHACER / IMPRIMIR ================= */
+document.getElementById("themeBtn").addEventListener("click", ()=>{
+  pushHistory();
+  state.theme = state.theme === "dark" ? "light" : "dark";
+  render();
+});
+document.getElementById("undoBtn").addEventListener("click", undo);
+document.getElementById("redoBtn").addEventListener("click", redo);
+document.getElementById("printBtn").addEventListener("click", ()=>{
+  renderPrintSummary();
+  const avisos = collectEmptyFieldsWarnings();
+  if(avisos.length){
+    alert("Aviso: hay campos vacíos antes de imprimir.\n\n" + avisos.join("\n") + "\n\nPuedes imprimir igual; esto es solo informativo.");
+  }
+  window.print();
+});
+window.addEventListener("beforeprint", renderPrintSummary);
+
+document.getElementById("clearAllBtn").addEventListener("click", ()=>{
+  const ok = confirm("¿Vaciar todo y empezar un programa nuevo desde cero? Podrás usar \"Deshacer\" si te arrepientes.");
+  if(!ok) return;
+  pushHistory();
+  state.weeks = [ makeWeek() ];
+  render();
+});
+
+/* ================= NOMBRE EDITABLE DEL TÍTULO ================= */
+const appTitleEl = document.getElementById("appTitleEditable");
+appTitleEl.textContent = state.appTitle;
+appTitleEl.addEventListener("focus", ()=> pushHistory());
+appTitleEl.addEventListener("blur", ()=>{
+  const nuevo = appTitleEl.textContent.trim() || "PAUL HARRIS";
+  state.appTitle = nuevo;
+  appTitleEl.textContent = nuevo;
+  renderPrintSummary();
+  scheduleAutosave();
+});
+appTitleEl.addEventListener("keydown", (e)=>{
+  if(e.key === "Enter"){ e.preventDefault(); appTitleEl.blur(); }
+});
+
+/* ================= EXPORTAR / IMPORTAR (.json) ================= */
+document.getElementById("exportBtn").addEventListener("click", ()=>{
+  const dataStr = JSON.stringify(state, null, 2);
+  const blob = new Blob([dataStr], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const stamp = new Date().toISOString().slice(0,10);
+  a.download = "programa_reunion_publica_" + stamp + ".json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // se retrasa la revocación para evitar que algunos navegadores corten
+  // la descarga antes de que termine de generarse el archivo
+  setTimeout(()=> URL.revokeObjectURL(url), 2000);
+});
+
+document.getElementById("importBtn").addEventListener("click", ()=>{
+  document.getElementById("importFileInput").click();
+});
+
+document.getElementById("importFileInput").addEventListener("change", (e)=>{
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      // se quita un posible BOM al inicio del archivo (algunos editores lo agregan)
+      let rawText = String(reader.result || "").replace(/^\uFEFF/, "").trim();
+      let parsed = JSON.parse(rawText);
+
+      // formatos alternativos: array de semanas directo, o el estado anidado bajo "state"
+      if(Array.isArray(parsed)){
+        parsed = { weeks: parsed };
+      } else if(parsed && !Array.isArray(parsed.weeks) && parsed.state && Array.isArray(parsed.state.weeks)){
+        parsed = parsed.state;
+      }
+
+      if(!parsed || !Array.isArray(parsed.weeks) || parsed.weeks.length === 0){
+        const foundKeys = (parsed && typeof parsed === "object") ? Object.keys(parsed).join(", ") : "(ninguna)";
+        alert("El archivo no tiene un formato válido de programa (falta la lista de semanas).\nClaves encontradas en el archivo: " + foundKeys);
+        return;
+      }
+      pushHistory();
+      const weeks = parsed.weeks.slice(0, MAX_WEEKS).map(normalizeWeek);
+      state = {
+        weeks: weeks,
+        theme: (parsed.theme === "dark") ? "dark" : "light",
+        appTitle: (typeof parsed.appTitle === "string" && parsed.appTitle.trim()) ? parsed.appTitle.trim() : "PAUL HARRIS"
+      };
+      recalcIdCounters();
+      render();
+    }catch(err){
+      alert("No se pudo leer el archivo como JSON válido. Detalle: " + err.message);
+    }
+  };
+  reader.onerror = ()=>{
+    alert("Ocurrió un error al leer el archivo.");
+  };
+  reader.readAsText(file, "UTF-8");
+  e.target.value = "";
+});
+
+/* ================= INICIO ================= */
+buildAutocompleteDatalists();
+render();
+</script>
+
+<script>
+/* =========================================================================
+   Datos "resueltos" para el sitio — igual a lo que se imprime en papel,
+   más número/título de canciones (que en el papel no se muestran, pero en
+   el sitio sí). La usan tanto "Vista previa" como "Publicar".
+   ========================================================================= */
+function buildResolvedWeeks(){
+  return state.weeks.map(week => {
+    const hospActivo = week.hospitalidad.findIndex(Boolean);
+    return {
+      fechaDisplay: week.fecha ? formatDate(week.fecha) : "",
+      hospitalidad: hospActivo >= 0 ? nombreGrupoHospitalidad(hospActivo) : "",
+      cancionInicial: resolveCancionParts(week.cancionInicial, week.cancionInicialManual),
+      presidente: week.presidente || "",
+      tituloDiscurso: resolveDiscursoDisplay(week.discursoNumero, week.discursoManual),
+      oradorVisitante: week.oradorVisitante || "",
+      congregacion: week.congregacion || "",
+      salida: (week.section2Visible && (week.oradorSaliente || week.congregacionVisitada || week.fechaSalida)) ? {
+        fechaDisplay: week.fechaSalida ? formatDate(week.fechaSalida) : "",
+        orador: week.oradorSaliente || "",
+        congregacionVisitada: week.congregacionVisitada || "",
+      } : null,
+      cancionAtalaya: resolveCancionParts(week.cancionAtalaya, week.cancionAtalayaManual),
+      atalaya: {
+        conductor: week.conductorAtalaya || "",
+        lector: week.lectorVisible ? (week.lectorAtalaya || "") : "",
+      },
+      cancionFinal: week.cancionFinalVisible ? resolveCancionParts(week.cancionFinal, week.cancionFinalManual) : null,
+      extraBlocks: (week.extraBlocks || []).map(b => ({
+        titulo: b.titulo || "Discurso Final",
+        orador: b.orador || "",
+        tituloDiscurso: (b.numero || b.numeroManual) ? resolveDiscursoDisplay(b.numero, b.numeroManual) : "",
+        cancion: resolveCancionParts(b.cancionFinal, b.cancionFinalManual),
+      })),
+    };
+  });
+}
+
+/* =========================================================================
+   VISTA PREVIA — muestra cómo se va a ver en el sitio, sin publicar nada.
+   ========================================================================= */
+function esc(s){
+  return (s || "").replace(/[&<>"']/g, m => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m]));
+}
+function cancionLinea(c){
+  if(!c) return "";
+  return `${esc(c.numero)}. ${esc(c.titulo)}`;
+}
+function previewWeekHTML(week){
+  const salidaHTML = week.salida ? `
+    <div class="pv-sub">
+      <div class="pv-sub-title">Orador local que sale</div>
+      <div class="pv-line">${[week.salida.fechaDisplay ? esc(week.salida.fechaDisplay) : "", esc(week.salida.orador) || "Sin asignar", esc(week.salida.congregacionVisitada) || "Sin asignar"].filter(Boolean).join(" &nbsp;·&nbsp; ")}</div>
+    </div>` : "";
+  const extraHTML = (week.extraBlocks || []).map(b => `
+    <div class="pv-sub">
+      <div class="pv-sub-title">${esc(b.titulo)}</div>
+      <div class="pv-line">${[esc(b.orador) || "Sin asignar", b.tituloDiscurso ? esc(b.tituloDiscurso) : ""].filter(Boolean).join(" &nbsp;·&nbsp; ")}</div>
+      ${b.cancion ? `<div class="pv-line pv-song">🎵 ${cancionLinea(b.cancion)}</div>` : ""}
+    </div>`).join("");
+
+  return `
+    <div class="pv-week">
+      <div class="pv-date">${esc(week.fechaDisplay) || "Sin fecha"}</div>
+      ${week.hospitalidad ? `<div class="pv-line"><b>Hospitalidad:</b> ${esc(week.hospitalidad)}</div>` : ""}
+      ${week.cancionInicial ? `<div class="pv-line pv-song">🎵 ${cancionLinea(week.cancionInicial)}</div>` : ""}
+      <div class="pv-line">${[esc(week.presidente) || "Sin asignar (Presidente)"].join("")}</div>
+      <div class="pv-line"><b>${esc(week.tituloDiscurso) || "Sin asignar"}</b></div>
+      <div class="pv-line">${[esc(week.oradorVisitante) || "Sin asignar", esc(week.congregacion) || "Sin asignar"].filter(Boolean).join(" &nbsp;·&nbsp; ")}</div>
+      ${salidaHTML}
+      <div class="pv-sub">
+        <div class="pv-sub-title">Estudio de La Atalaya</div>
+        ${week.cancionAtalaya ? `<div class="pv-line pv-song">🎵 ${cancionLinea(week.cancionAtalaya)}</div>` : ""}
+        <div class="pv-line">${[esc(week.atalaya.conductor) || "Sin asignar", week.atalaya.lector ? esc(week.atalaya.lector) : ""].filter(Boolean).join(" &nbsp;·&nbsp; ")}</div>
+      </div>
+      ${week.cancionFinal ? `<div class="pv-line pv-song">🎵 Canción final: ${cancionLinea(week.cancionFinal)}</div>` : ""}
+      ${extraHTML}
+    </div>
+  `;
+}
+
+const previewOverlay = document.createElement("div");
+previewOverlay.className = "pv-overlay";
+previewOverlay.innerHTML = `<div class="pv-box"><button class="pv-close" type="button">&times;</button><div class="pv-title">Vista previa</div><p class="pv-hint">Así se va a ver en el sitio para todos los miembros una vez que publiques. Todavía no se ha guardado nada.</p><div id="pvContent"></div></div>`;
+document.body.appendChild(previewOverlay);
+previewOverlay.querySelector(".pv-close").addEventListener("click", () => previewOverlay.classList.remove("show"));
+previewOverlay.addEventListener("click", (e) => { if(e.target === previewOverlay) previewOverlay.classList.remove("show"); });
+
+document.getElementById("previewBtn").addEventListener("click", () => {
+  const weeks = buildResolvedWeeks();
+  document.getElementById("pvContent").innerHTML = weeks.length
+    ? weeks.map(previewWeekHTML).join("")
+    : `<div class="pv-empty">No hay semanas cargadas todavía.</div>`;
+  previewOverlay.classList.add("show");
+});
+
+/* =========================================================================
+   PUBLICAR — toma el estado actual ya resuelto y lo guarda en Firestore
+   para que todos los miembros lo vean en reunion-publica.html. No modifica
+   nada de la lógica del editor.
+   ========================================================================= */
+document.getElementById("publishBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("publishBtn");
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Publicando…";
+  try{
+    const { initializeApp, getApps, getApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+    const { getFirestore, doc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    const { firebaseConfig } = await import("./assets/js/firebase-config.js");
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    await setDoc(doc(db, "reunionpublica", "published"), {
+      appTitle: state.appTitle,
+      weeks: buildResolvedWeeks(),
+      publishedAt: new Date().toISOString(),
+      publishedBy: window.__phUser ? window.__phUser.email : null,
+    });
+
+    btn.textContent = "¡Publicado!";
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1800);
+  } catch (err){
+    console.error("No se pudo publicar:", err);
+    alert("No se pudo publicar. Revisa tu conexión e inténtalo de nuevo.");
+    btn.textContent = original;
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
